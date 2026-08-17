@@ -122,6 +122,12 @@ function UserControl({ notify }: { notify: (s: string) => void }) {
 }
 
 function Settings({ logo, setLogo, notify }: { logo: string; setLogo: (l: string) => void; notify: (s: string) => void }) {
+    const [waNumber, setWaNumber] = useState('');
+
+    useEffect(() => {
+        api('/settings/whatsapp').then(r => setWaNumber(r?.number || '')).catch(() => { });
+    }, []);
+
     const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -144,6 +150,14 @@ function Settings({ logo, setLogo, notify }: { logo: string; setLogo: (l: string
         }
     };
 
+    const saveWaNumber = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await api('/settings/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ number: waNumber }) });
+            notify('Default WhatsApp Share Phone Number saved!');
+        } catch (x: any) { notify(x.message) }
+    };
+
     return <section>
         <h1>Settings</h1>
         <div className="card">
@@ -160,6 +174,14 @@ function Settings({ logo, setLogo, notify }: { logo: string; setLogo: (l: string
                 </label>
             </div>
         </div>
+        <form className="card" onSubmit={saveWaNumber}>
+            <h2>📲 Default WhatsApp Share Phone Number</h2>
+            <p>Set the default target WhatsApp mobile number (e.g. Owner / Manager). Clicking <b>Share WhatsApp</b> will automatically direct message to this number!</p>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: 12 }}>
+                <input style={{ width: 280, padding: 10, borderRadius: 6, border: '1px solid #cbd5e1' }} value={waNumber} onChange={e => setWaNumber(e.target.value)} placeholder="e.g. 9876543210" />
+                <button type="submit" className="primary">Save WhatsApp Number</button>
+            </div>
+        </form>
         <div className="card">
             <h3>Data Persistence</h3>
             <p>Your fleet master and daily advance records are saved in Turso Cloud Database.</p>
@@ -403,11 +425,20 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
 
 
 
-function shareWhatsApp(items: Advance[], dateStr: string) {
+async function shareWhatsApp(items: Advance[], dateStr: string) {
     if (!items.length) {
         alert('No advance entries available to share.');
         return;
     }
+    let targetPhone = '';
+    try {
+        const res = await api('/settings/whatsapp');
+        if (res?.number) {
+            targetPhone = res.number.replace(/\D/g, '');
+            if (targetPhone.length === 10) targetPhone = '91' + targetPhone;
+        }
+    } catch { }
+
     const dText = dateStr ? dateStr.split('-').reverse().join('.') : new Date().toLocaleDateString('en-GB').replace(/\//g, '.');
     let text = `🚛 *DRIVER ADVANCE SUMMARY*\n📅 *Date:* ${dText}\n\n`;
 
@@ -431,8 +462,8 @@ function shareWhatsApp(items: Advance[], dateStr: string) {
 
     text += `===============================\n💰 *GRAND TOTAL: ₹${grandTotal.toLocaleString('en-IN')}*\n🚚 *Total Vehicles: ${items.length}*\n===============================`;
 
-    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+    const baseUrl = targetPhone ? `https://api.whatsapp.com/send?phone=${targetPhone}&text=` : `https://api.whatsapp.com/send?text=`;
+    window.open(baseUrl + encodeURIComponent(text), '_blank');
 }
 
 function Table({ items, onEdit, onDelete, compact }: { items: Advance[]; onEdit?: (x: Advance) => void; onDelete?: (x: Advance) => void; compact?: boolean }) {

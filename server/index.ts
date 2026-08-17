@@ -68,6 +68,15 @@ app.delete('/api/settings/logo', async (q, r) => {
     await db.execute("DELETE FROM settings WHERE key='office_logo'");
     r.json({ success: true });
 });
+app.get('/api/settings/whatsapp', async (q, r) => {
+    const item = await one("SELECT value FROM settings WHERE key='whatsapp_number'");
+    r.json({ number: item ? item.value : '' });
+});
+app.post('/api/settings/whatsapp', async (q, r) => {
+    const { number } = q.body;
+    await db.execute({ sql: "INSERT INTO settings(key, value) VALUES('whatsapp_number', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", args: [norm(number)] });
+    r.json({ success: true, number: norm(number) });
+});
 
 app.post('/api/login', async (q, r) => {
     const username = String(q.body.username || '').trim().toLowerCase();
