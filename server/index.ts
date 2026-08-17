@@ -234,6 +234,7 @@ function workbook(data: any[], title: string) {
     sheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }];
     sheet['!cols'] = [8, 18, 16, 18, 16, 20, 10, 16, 30].map(w => ({ wch: w }));
     sheet['!freeze'] = { xSplit: 0, ySplit: 2 };
+    sheet['!pageSetup'] = { orientation: 'portrait', fitToWidth: 1, fitToHeight: 0 };
     return sheet;
 }
 
@@ -306,6 +307,7 @@ function exportThreeSetsExcel(data: any[], dateText: string) {
         { wch: 34 }  // REMARKS
     ];
     ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+    ws['!pageSetup'] = { orientation: 'portrait', fitToWidth: 1, fitToHeight: 0 };
 
     const blueHeaderFill = { fgColor: { rgb: '00A2E8' }, patternType: 'solid' };
     const blueTotalFill = { fgColor: { rgb: '00A2E8' }, patternType: 'solid' };
