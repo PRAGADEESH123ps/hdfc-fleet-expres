@@ -491,8 +491,7 @@ function openWa(rawPhone: string, items: Advance[], dateStr: string) {
         text += `🔹 *${group} ADVANCE*\n`;
         let subtotal = 0;
         list.forEach((x, idx) => {
-            const card = group === 'PERSONAL' || (x.cardNumber || '').toUpperCase().startsWith('P/A') ? 'P/A' : x.cardNumber;
-            text += `${idx + 1}. ${x.vehicleNumber} | Card: ${card} | Driver: ${x.driverName} | ₹${Number(x.totalAmount).toLocaleString('en-IN')}${x.ton ? ' | ' + x.ton : ''}${x.remarks ? ' (' + x.remarks + ')' : ''}\n`;
+            text += `${idx + 1}. ${x.vehicleNumber} | ${x.driverName} | ₹${Number(x.totalAmount).toLocaleString('en-IN')}${x.remarks ? ' (' + x.remarks + ')' : ''}\n`;
             subtotal += Number(x.totalAmount || 0);
         });
         text += `*Subtotal: ₹${subtotal.toLocaleString('en-IN')} (${list.length} Vehicles)*\n\n`;
