@@ -272,6 +272,20 @@ app.get('/api/export/advances', (q, r) => {
 });
 
 app.get('/api/export/vehicles', (q, r) => { const data = rows('SELECT * FROM vehicles ORDER BY lastFourDigits'); const ws = XLSX.utils.json_to_sheet(data.map(v => ({ 'Vehicle No': v.vehicleNumber, 'Card No': v.cardNumber, 'Driver Name': v.driverName, 'Driver No': v.driverNumber, 'incharge name': v.inchargeName || v.remarks, 'ton': v.ton }))); ws['!cols'] = [18, 16, 22, 16, 18, 12].map(w => ({ wch: w })); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Vehicle Master'); const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }); r.attachment('Vehicle_Master.xlsx').send(buf) });
+app.get('/api/export/template/vehicles', (q, r) => {
+    const headers = [['Vehicle No', 'Card No', 'Driver Name', 'Driver No', 'incharge name', 'Ton']];
+    const samples = [
+        ['TN38AB4511', '123456', 'Ajit', '9876543210', 'SILAMBU', '30/35'],
+        ['TN38AB0947', '234567', 'Kumar', '9876543211', 'DEEPAK', '20/24'],
+        ['TN38AB0022', 'P/A', 'Ravi', '9876543212', 'SILAMBU', '32/35']
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([...headers, ...samples]);
+    ws['!cols'] = [18, 16, 22, 16, 18, 12].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Master Import Template');
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    r.attachment('Vehicle_Master_Import_Template.xlsx').send(buf);
+});
 
 app.post('/api/import/vehicles', upload.single('file'), (q, r) => { try { const wb = XLSX.readFile(q.file!.path, { raw: false }); const sheet = wb.Sheets[wb.SheetNames[0]]; const incoming = XLSX.utils.sheet_to_json<any>(sheet, { defval: '' }); let imported = 0, updated = 0, invalid = 0; for (const row of incoming) { const getVal = (...keys: string[]) => { for (const k of Object.keys(row)) { const cleanK = k.trim().toLowerCase().replace(/[^a-z0-9]/g, ''); if (keys.some(key => cleanK === key.toLowerCase().replace(/[^a-z0-9]/g, ''))) return String(row[k]).trim(); } return ''; }; const vehNo = getVal('vehicleno', 'fullvehiclenumber', 'vehiclenumber', 'vehicle', 'vehno', 'vno', 'truckno', 'lorryno', 'tnno'); const last4 = getVal('last4', 'lastfourdigits', 'last4digits', 'digits', 'last4no'); const cardNo = getVal('cardno', 'cardnumber', 'card', 'hdfccard', 'cardnum'); const driverName = getVal('drivername', 'driver', 'drivername/mobile', 'name', 'drivernameoverride'); const driverNumber = getVal('driverno', 'drivernumber', 'drivermobile', 'mobile', 'phone', 'contact', 'driverphone'); const inchargeName = getVal('inchargename', 'incharge', 'incharge name', 'supervisor'); const ton = getVal('ton', 'capacity', 'weight'); const status = getVal('status', 'state'); const remarks = getVal('remarks', 'remark', 'notes', 'note'); const v = vehiclePayload({ vehicleNumber: vehNo, lastFourDigits: last4, cardNumber: cardNo, driverName: driverName, driverNumber: driverNumber, inchargeName: inchargeName, status: status, remarks: remarks, ton: ton }); if (!valid(v)) { invalid++; continue } const existing = one('SELECT id FROM vehicles WHERE lastFourDigits=?', v.lastFourDigits); if (existing) { db.prepare('UPDATE vehicles SET vehicleNumber=?,cardNumber=?,driverName=?,driverNumber=?,inchargeName=?,status=?,remarks=?,ton=?,updatedAt=CURRENT_TIMESTAMP WHERE id=?').run(v.vehicleNumber, v.cardNumber, v.driverName, v.driverNumber, v.inchargeName, v.status, v.remarks, v.ton, (existing as any).id); updated++; } else { db.prepare('INSERT INTO vehicles(vehicleNumber,lastFourDigits,cardNumber,driverName,driverNumber,inchargeName,status,remarks,ton) VALUES(?,?,?,?,?,?,?,?,?)').run(v.vehicleNumber, v.lastFourDigits, v.cardNumber, v.driverName, v.driverNumber, v.inchargeName, v.status, v.remarks, v.ton); imported++; } } fs.unlinkSync(q.file!.path); r.json({ imported, updated, invalid }) } catch (e) { r.status(400).json({ message: 'Unable to import file. Check the expected column names.' }) } });
 
