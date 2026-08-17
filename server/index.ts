@@ -267,5 +267,8 @@ if (fs.existsSync(distPath)) {
 }
 
 const PORT = Number(process.env.PORT) || 3001;
-app.listen(PORT, '0.0.0.0', () => console.log(`Fleet API running on port ${PORT}`));
+if (process.env.NODE_ENV !== 'production' || process.env.RENDER || !process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => console.log(`Fleet API running on port ${PORT}`));
+}
+export default app;
 
