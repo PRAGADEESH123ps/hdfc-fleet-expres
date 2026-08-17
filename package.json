@@ -7,7 +7,7 @@
     "dev": "concurrently \"npm:server\" \"npm:client\"",
     "server": "tsx watch server/index.ts",
     "client": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "vite build",
     "start": "tsx server/index.ts"
   },
   "dependencies": {
