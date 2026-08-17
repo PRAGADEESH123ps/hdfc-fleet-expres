@@ -386,7 +386,10 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
         <div className="card">
             <div className="tableHead">
                 <h2>Daily Entries</h2>
-                <a className="primary button" href={'/api/export/advances?date=' + date + '&sets=three'}>Export 3 Sets Excel</a>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <button type="button" style={{ background: '#25D366', color: '#fff', border: 'none' }} className="button" onClick={() => shareWhatsApp(items, date)}>📲 Share WhatsApp</button>
+                    <a className="primary button" href={'/api/export/advances?date=' + date + '&sets=three'}>Export 3 Sets Excel</a>
+                </div>
             </div>
             <Table items={items} onEdit={editItem} onDelete={async x => { if (confirm('Are you sure you want to delete this entry?')) { await api('/advances/' + x.id, { method: 'DELETE' }); load(); notify('Entry deleted') } }} />
             <div className="summary">
@@ -400,10 +403,76 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
 
 
 
-function Table({ items, onEdit, onDelete, compact }: { items: Advance[]; onEdit?: (x: Advance) => void; onDelete?: (x: Advance) => void; compact?: boolean }) { if (!items.length) return <div className="empty">No entries found for this selection.</div>; return <div className="tablewrap"><table><thead><tr>{['S.NO', 'VEHICLE NO', 'CARD NO', 'DRIVER NAME', 'DRIVER NO', 'INCHARGE NAME', 'TON', 'TOTAL AMOUNT', 'SET', 'REMARKS', ...(compact ? [] : ['ACTIONS'])].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>{items.map((x, i) => <tr key={x.id}><td>{i + 1}</td><td>{x.vehicleNumber}</td><td>{x.cardNumber}</td><td>{x.driverName}</td><td>{x.driverNumber}</td><td>{x.inchargeName}</td><td>{x.ton}</td><td>{money(x.totalAmount)}</td><td><span className={'badge ' + ((x as any).entryType || 'LOADING')}>{(x as any).entryType || 'LOADING'}</span></td><td>{x.remarks}</td>{!compact && <td><button onClick={() => onEdit?.(x)}>Edit</button><button className="danger" onClick={() => onDelete?.(x)}>Delete</button></td>}</tr>)}</tbody></table></div> }
+function shareWhatsApp(items: Advance[], dateStr: string) {
+    if (!items.length) {
+        alert('No advance entries available to share.');
+        return;
+    }
+    const dText = dateStr ? dateStr.split('-').reverse().join('.') : new Date().toLocaleDateString('en-GB').replace(/\//g, '.');
+    let text = `🚛 *DRIVER ADVANCE SUMMARY*\n📅 *Date:* ${dText}\n\n`;
+
+    const groups = ['LOADING', 'PERSONAL', 'EXTRA'];
+    let grandTotal = 0;
+
+    groups.forEach(group => {
+        const list = items.filter((x: any) => ((x as any).entryType || 'LOADING') === group);
+        if (!list.length) return;
+
+        text += `🔹 *${group} ADVANCE*\n`;
+        let subtotal = 0;
+        list.forEach((x, idx) => {
+            const card = group === 'PERSONAL' || (x.cardNumber || '').toUpperCase().startsWith('P/A') ? 'P/A' : x.cardNumber;
+            text += `${idx + 1}. ${x.vehicleNumber} | Card: ${card} | Driver: ${x.driverName} | ₹${Number(x.totalAmount).toLocaleString('en-IN')}${x.ton ? ' | ' + x.ton : ''}${x.remarks ? ' (' + x.remarks + ')' : ''}\n`;
+            subtotal += Number(x.totalAmount || 0);
+        });
+        text += `*Subtotal: ₹${subtotal.toLocaleString('en-IN')} (${list.length} Vehicles)*\n\n`;
+        grandTotal += subtotal;
+    });
+
+    text += `===============================\n💰 *GRAND TOTAL: ₹${grandTotal.toLocaleString('en-IN')}*\n🚚 *Total Vehicles: ${items.length}*\n===============================`;
+
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+}
+
+function Table({ items, onEdit, onDelete, compact }: { items: Advance[]; onEdit?: (x: Advance) => void; onDelete?: (x: Advance) => void; compact?: boolean }) {
+    if (!items.length) return <div className="empty">No entries found for this selection.</div>;
+    return <div className="tablewrap">
+        <table>
+            <thead>
+                <tr>{['S.NO', 'VEHICLE NO', 'CARD NO', 'DRIVER NAME', 'DRIVER NO', 'INCHARGE NAME', 'TON', 'TOTAL AMOUNT', 'SET', 'REMARKS', ...(compact ? [] : ['ACTIONS'])].map(x => <th key={x}>{x}</th>)}</tr>
+            </thead>
+            <tbody>
+                {items.map((x, i) => {
+                    const cleanPhone = (x.driverNumber || '').replace(/\D/g, '');
+                    const hasValidPhone = cleanPhone.length >= 10;
+                    return <tr key={x.id}>
+                        <td>{i + 1}</td>
+                        <td>{x.vehicleNumber}</td>
+                        <td>{x.cardNumber}</td>
+                        <td>{x.driverName}</td>
+                        <td>
+                            {hasValidPhone ? (
+                                <a href={`https://wa.me/91${cleanPhone.slice(-10)}`} target="_blank" rel="noreferrer" title="Click to WhatsApp Driver" style={{ color: '#0284c7', fontWeight: 600, textDecoration: 'none' }}>
+                                    📱 {x.driverNumber}
+                                </a>
+                            ) : (x.driverNumber || '-')}
+                        </td>
+                        <td>{x.inchargeName}</td>
+                        <td>{x.ton}</td>
+                        <td>{money(x.totalAmount)}</td>
+                        <td><span className={'badge ' + ((x as any).entryType || 'LOADING')}>{(x as any).entryType || 'LOADING'}</span></td>
+                        <td>{x.remarks}</td>
+                        {!compact && <td><button onClick={() => onEdit?.(x)}>Edit</button><button className="danger" onClick={() => onDelete?.(x)}>Delete</button></td>}
+                    </tr>;
+                })}
+            </tbody>
+        </table>
+    </div>;
+}
 
 function Master({ items, refresh, notify }: { items: Vehicle[]; refresh: () => void; notify: (s: string) => void }) { const blank = { vehicleNumber: '', cardNumber: '', driverName: '', driverNumber: '', inchargeName: '', ton: '', status: 'Active', remarks: '' }; const [f, setF] = useState<any>(blank), [edit, setEdit] = useState<Vehicle | null>(null), [q, setQ] = useState(''); const save = async (e: React.FormEvent) => { e.preventDefault(); try { await api('/vehicles' + (edit ? '/' + edit.id : ''), { method: edit ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) }); notify(edit ? 'Vehicle updated' : 'Vehicle added'); setF(blank); setEdit(null); refresh() } catch (x: any) { notify(x.message) } }; const filtered = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); const imp = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files?.[0]) return; const fd = new FormData(); fd.append('file', e.target.files[0]); try { const x = await api('/import/vehicles', { method: 'POST', body: fd }); notify(`Imported ${x.imported}; duplicates ${x.duplicates}; invalid ${x.invalid}`); refresh() } catch (x: any) { notify(x.message) } }; return <section><div className="top"><div><h1>Vehicle Master</h1><p>The last four digits are derived automatically from the vehicle number for lookup.</p></div><div><a className="button" href="/api/export/template/vehicles">Download Import Template</a><a className="button" href="/api/export/vehicles">Export Excel</a><label className="button">Import Vehicle Master<input type="file" accept=".xlsx,.csv" onChange={imp} hidden /></label></div></div><form className="card masterform" onSubmit={save}><h2>{edit ? 'Edit Vehicle' : 'Add Vehicle'}</h2>{[['vehicleNumber', 'Full Vehicle Number'], ['cardNumber', 'Card Number'], ['driverName', 'Driver Name'], ['driverNumber', 'Driver Number'], ['inchargeName', 'Default Incharge Name (e.g. SILAMBU, SIVA)'], ['ton', 'Default TON / Capacity (e.g. 30/35)'], ['remarks', 'Remarks']].map(([k, l]) => <label key={k}>{l}<input value={f[k] || ''} onChange={e => setF({ ...f, [k]: e.target.value })} required={!['remarks', 'ton', 'inchargeName', 'driverNumber'].includes(k)} /></label>)}<label>Status<select value={f.status} onChange={e => setF({ ...f, status: e.target.value })}><option>Active</option><option>Inactive</option></select></label><div className="actions"><button className="primary">{edit ? 'Save Vehicle' : 'Add Vehicle'}</button>{edit && <button type="button" onClick={() => { setEdit(null); setF(blank) }}>Cancel</button>}</div></form><div className="card"><input className="search" placeholder="Search vehicle, driver or card number" value={q} onChange={e => setQ(e.target.value)} /><div className="tablewrap"><table><thead><tr>{['VEHICLE NO', 'CARD NO', 'DRIVER', 'DRIVER NO', 'INCHARGE NAME', 'TON', 'STATUS', 'REMARKS', 'ACTIONS'].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>{filtered.map(x => <tr key={x.id}><td>{x.vehicleNumber}</td><td>{x.cardNumber}</td><td>{x.driverName}</td><td>{x.driverNumber}</td><td>{x.inchargeName || '-'}</td><td>{x.ton || '-'}</td><td><span className={'badge ' + x.status}>{x.status}</span></td><td>{x.remarks}</td><td><button onClick={() => { setEdit(x); setF(x); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Edit</button><button onClick={async () => { if (confirm('Delete this vehicle?')) try { await api('/vehicles/' + x.id, { method: 'DELETE' }); refresh(); notify('Vehicle deleted') } catch (e: any) { notify(e.message) } }} className="danger">Delete</button></td></tr>)}</tbody></table></div></div></section> }
-function History({ notify }: { notify: (s: string) => void }) { const [items, setItems] = useState<Advance[]>([]), [date, setDate] = useState(''), [q, setQ] = useState(''); useEffect(() => { api('/advances' + (date ? '?date=' + date : '')).then(setItems) }, [date]); const shown = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); return <section><div className="top"><div><h1>Advance History</h1><p>Search prior daily advance records. <strong style={{ fontWeight: 700, color: '#0284c7' }}>(Retaining Recent 15-Day Active Advance Records)</strong></p></div><div><a className="button" href={'/api/export/advances?date=' + date}>Export Selected Date</a><a className="primary button" href="/api/export/advances?all=true">Export All Records</a></div></div><div className="card filters"><label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label><label>Search<input placeholder="Vehicle, last 4, driver, card, incharge" value={q} onChange={e => setQ(e.target.value)} /></label></div><div className="card"><Table items={shown} /></div></section> }
+function History({ notify }: { notify: (s: string) => void }) { const [items, setItems] = useState<Advance[]>([]), [date, setDate] = useState(''), [q, setQ] = useState(''); useEffect(() => { api('/advances' + (date ? '?date=' + date : '')).then(setItems) }, [date]); const shown = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); return <section><div className="top"><div><h1>Advance History</h1><p>Search prior daily advance records. <strong style={{ fontWeight: 700, color: '#0284c7' }}>(Retaining Recent 15-Day Active Advance Records)</strong></p></div><div><button type="button" style={{ background: '#25D366', color: '#fff', border: 'none' }} className="button" onClick={() => shareWhatsApp(shown, date)}>📲 Share WhatsApp</button><a className="button" href={'/api/export/advances?date=' + date}>Export Selected Date</a><a className="primary button" href="/api/export/advances?all=true">Export All Records</a></div></div><div className="card filters"><label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label><label>Search<input placeholder="Vehicle, last 4, driver, card, incharge" value={q} onChange={e => setQ(e.target.value)} /></label></div><div className="card"><Table items={shown} /></div></section> }
 type Parsed = { lastFourDigits: string; totalAmount: number; remarks: string; driverNameOverride: string; ton: string; isPersonal: boolean; isExtra: boolean; found: boolean };
 function parseMessage(message: string, master: Vehicle[]): Parsed[] {
     return message.split(/\r?\n/).map(line => {
