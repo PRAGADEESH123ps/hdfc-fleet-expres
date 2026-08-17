@@ -462,8 +462,16 @@ async function shareWhatsApp(items: Advance[], dateStr: string) {
 
     text += `===============================\n💰 *GRAND TOTAL: ₹${grandTotal.toLocaleString('en-IN')}*\n🚚 *Total Vehicles: ${items.length}*\n===============================`;
 
-    const baseUrl = targetPhone ? `https://api.whatsapp.com/send?phone=${targetPhone}&text=` : `https://api.whatsapp.com/send?text=`;
-    window.open(baseUrl + encodeURIComponent(text), '_blank');
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const encodedText = encodeURIComponent(text);
+
+    if (isMobile) {
+        const waUrl = targetPhone ? `https://wa.me/${targetPhone}?text=${encodedText}` : `https://wa.me/?text=${encodedText}`;
+        window.location.href = waUrl;
+    } else {
+        const waUrl = targetPhone ? `https://web.whatsapp.com/send?phone=${targetPhone}&text=${encodedText}` : `https://api.whatsapp.com/send?text=${encodedText}`;
+        window.open(waUrl, '_blank');
+    }
 }
 
 function Table({ items, onEdit, onDelete, compact }: { items: Advance[]; onEdit?: (x: Advance) => void; onDelete?: (x: Advance) => void; compact?: boolean }) {
