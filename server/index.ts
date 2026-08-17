@@ -359,9 +359,18 @@ app.get('/api/export/advances', async (q, r) => {
 });
 
 app.get('/api/export/vehicles', async (q, r) => {
-    const data = await rows('SELECT * FROM vehicles ORDER BY lastFourDigits');
-    const ws = XLSX.utils.json_to_sheet(data.map(v => ({ 'Vehicle No': v.vehicleNumber, 'Card No': v.cardNumber, 'Driver Name': v.driverName, 'Driver No': v.driverNumber, 'incharge name': v.inchargeName || v.remarks, 'ton': v.ton })));
-    ws['!cols'] = [18, 16, 22, 16, 18, 12].map(w => ({ wch: w }));
+    const data = await rows('SELECT * FROM vehicles ORDER BY lastFourDigits,vehicleNumber');
+    const ws = XLSX.utils.json_to_sheet(data.map(v => ({
+        'Vehicle No': v.vehicleNumber,
+        'Card No': v.cardNumber,
+        'Driver Name': v.driverName,
+        'Driver No': v.driverNumber,
+        'Incharge Name': v.inchargeName || '',
+        'Ton': v.ton || '',
+        'Status': v.status || 'Active',
+        'Remarks': v.remarks || ''
+    })));
+    ws['!cols'] = [18, 16, 22, 16, 18, 12, 12, 25].map(w => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Vehicle Master');
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
@@ -369,14 +378,14 @@ app.get('/api/export/vehicles', async (q, r) => {
 });
 
 app.get('/api/export/template/vehicles', (q, r) => {
-    const headers = [['Vehicle No', 'Card No', 'Driver Name', 'Driver No', 'incharge name', 'Ton']];
+    const headers = [['Vehicle No', 'Card No', 'Driver Name', 'Driver No', 'Incharge Name', 'Ton', 'Status', 'Remarks']];
     const samples = [
-        ['TN38AB4511', '123456', 'Ajit', '9876543210', 'SILAMBU', '30/35'],
-        ['TN38AB0947', '234567', 'Kumar', '9876543211', 'DEEPAK', '20/24'],
-        ['TN38AB0022', 'P/A', 'Ravi', '9876543212', 'SILAMBU', '32/35']
+        ['TN38AB4511', '123456', 'Ajit', '9876543210', 'SILAMBU', '30/35', 'Active', ''],
+        ['TN38AB0947', '234567', 'Kumar', '9876543211', 'DEEPAK', '20/24', 'Active', ''],
+        ['TN38AB0022', 'P/A', 'Ravi', '9876543212', 'SILAMBU', '32/35', 'Active', '']
     ];
     const ws = XLSX.utils.aoa_to_sheet([...headers, ...samples]);
-    ws['!cols'] = [18, 16, 22, 16, 18, 12].map(w => ({ wch: w }));
+    ws['!cols'] = [18, 16, 22, 16, 18, 12, 12, 25].map(w => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Master Import Template');
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
@@ -410,9 +419,9 @@ app.post('/api/import/vehicles', upload.single('file'), async (q, r) => {
             const v = vehiclePayload({ vehicleNumber: vehNo, lastFourDigits: last4, cardNumber: cardNo, driverName: driverName, driverNumber: driverNumber, inchargeName: inchargeName, status: status, remarks: remarks, ton: ton });
             if (!valid(v)) { invalid++; continue; }
 
-            const existing = await one('SELECT id FROM vehicles WHERE lastFourDigits=?', v.lastFourDigits);
+            const existing = await one('SELECT id FROM vehicles WHERE lower(vehicleNumber)=lower(?)', v.vehicleNumber);
             if (existing) {
-                await db.execute({ sql: 'UPDATE vehicles SET vehicleNumber=?,cardNumber=?,driverName=?,driverNumber=?,inchargeName=?,status=?,remarks=?,ton=?,updatedAt=CURRENT_TIMESTAMP WHERE id=?', args: [v.vehicleNumber, v.cardNumber, v.driverName, v.driverNumber, v.inchargeName, v.status, v.remarks, v.ton, Number(existing.id)] });
+                await db.execute({ sql: 'UPDATE vehicles SET lastFourDigits=?,cardNumber=?,driverName=?,driverNumber=?,inchargeName=?,status=?,remarks=?,ton=?,updatedAt=CURRENT_TIMESTAMP WHERE id=?', args: [v.lastFourDigits, v.cardNumber, v.driverName, v.driverNumber, v.inchargeName, v.status, v.remarks, v.ton, Number(existing.id)] });
                 updated++;
             } else {
                 await db.execute({ sql: 'INSERT INTO vehicles(vehicleNumber,lastFourDigits,cardNumber,driverName,driverNumber,inchargeName,status,remarks,ton) VALUES(?,?,?,?,?,?,?,?,?)', args: [v.vehicleNumber, v.lastFourDigits, v.cardNumber, v.driverName, v.driverNumber, v.inchargeName, v.status, v.remarks, v.ton] });
