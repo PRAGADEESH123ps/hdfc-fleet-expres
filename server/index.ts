@@ -242,13 +242,13 @@ function workbook(data: any[], title: string) {
 }
 
 function exportThreeSetsExcel(data: any[], dateText: string) {
-    const headers = ['S.NO', 'CARD NO', 'DRIVER NAME', 'DRIVER NO', 'INCHARGE NAME', 'TON', 'TOTAL AMOUNT', 'REMARKS'];
+    const headers = ['S.NO', 'VEHICLE NO', 'CARD NO', 'DRIVER NAME', 'DRIVER NO', 'INCHARGE NAME', 'TON', 'TOTAL AMOUNT', 'REMARKS'];
     const aoa: any[][] = [];
     const merges: any[] = [];
     const rowTypes: string[] = [];
 
     aoa.push([`HDFC FLEET EXPRESS CARD DATE : ${dateText}`]);
-    merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 7 } });
+    merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } });
     rowTypes.push('title');
 
     let grandTotal = 0;
@@ -259,7 +259,7 @@ function exportThreeSetsExcel(data: any[], dateText: string) {
 
         const headerRowIdx = aoa.length;
         aoa.push([type]);
-        merges.push({ s: { r: headerRowIdx, c: 0 }, e: { r: headerRowIdx, c: 7 } });
+        merges.push({ s: { r: headerRowIdx, c: 0 }, e: { r: headerRowIdx, c: 8 } });
         rowTypes.push('sectionHeader');
 
         aoa.push(headers);
@@ -270,6 +270,7 @@ function exportThreeSetsExcel(data: any[], dateText: string) {
             const cardNo = (type === 'PERSONAL' || norm(x.cardNumber).toUpperCase() === 'P/A' || norm(x.cardNumber).toUpperCase() === 'PA') ? 'P/A' : x.cardNumber;
             aoa.push([
                 i + 1,
+                x.vehicleNumber || '',
                 cardNo,
                 x.driverName || '',
                 x.driverNumber || '',
@@ -281,11 +282,11 @@ function exportThreeSetsExcel(data: any[], dateText: string) {
             rowTypes.push('data');
         }
 
-        aoa.push(['', '', '', '', '', 'TOTAL', sectionTotal, '']);
+        aoa.push(['', '', '', '', '', '', 'TOTAL', sectionTotal, '']);
         rowTypes.push('total');
 
         if (type === 'EXTRA') {
-            aoa.push(['', '', '', '', '', 'GRAND TOTAL', grandTotal, '']);
+            aoa.push(['', '', '', '', '', '', 'GRAND TOTAL', grandTotal, '']);
             rowTypes.push('grandTotal');
         } else {
             aoa.push([]);
@@ -298,14 +299,15 @@ function exportThreeSetsExcel(data: any[], dateText: string) {
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!merges'] = merges;
     ws['!cols'] = [
-        { wch: 8 },
-        { wch: 14 },
-        { wch: 24 },
-        { wch: 16 },
-        { wch: 20 },
-        { wch: 12 },
-        { wch: 18 },
-        { wch: 34 }
+        { wch: 8 },  // S.NO
+        { wch: 18 }, // VEHICLE NO
+        { wch: 14 }, // CARD NO
+        { wch: 24 }, // DRIVER NAME
+        { wch: 16 }, // DRIVER NO
+        { wch: 20 }, // INCHARGE NAME
+        { wch: 12 }, // TON
+        { wch: 18 }, // TOTAL AMOUNT
+        { wch: 34 }  // REMARKS
     ];
     ws['!freeze'] = { xSplit: 0, ySplit: 1 };
 
@@ -318,12 +320,12 @@ function exportThreeSetsExcel(data: any[], dateText: string) {
         right: { style: 'thin', color: { rgb: '000000' } }
     };
 
-    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:H1');
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:I1');
     for (let r = range.s.r; r <= range.e.r; r++) {
         const rowType = rowTypes[r] || 'data';
         if (rowType === 'blank') continue;
 
-        for (let c = 0; c <= 7; c++) {
+        for (let c = 0; c <= 8; c++) {
             const cellAddress = XLSX.utils.encode_cell({ r, c });
             if (!ws[cellAddress]) {
                 ws[cellAddress] = { t: 's', v: '' };
