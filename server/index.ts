@@ -1,4 +1,4 @@
-import express from 'express'; import cors from 'cors'; import multer from 'multer'; import XLSX from 'xlsx-js-style'; import { DatabaseSync } from 'node:sqlite'; import path from 'node:path'; import fs from 'node:fs';
+import express from 'express'; import cors from 'cors'; import multer from 'multer'; import { createRequire } from 'node:module'; const require = createRequire(import.meta.url); const XLSX = require('xlsx-js-style'); import { DatabaseSync } from 'node:sqlite'; import path from 'node:path'; import fs from 'node:fs';
 const app = express(), upload = multer({ dest: 'uploads/' }); app.use(cors()); app.use(express.json());
 fs.mkdirSync('data', { recursive: true }); const db = new DatabaseSync(path.resolve('data/fleet.db'));
 db.exec(`PRAGMA foreign_keys=ON; CREATE TABLE IF NOT EXISTS vehicles(id INTEGER PRIMARY KEY AUTOINCREMENT,vehicleNumber TEXT NOT NULL,lastFourDigits TEXT NOT NULL UNIQUE,cardNumber TEXT NOT NULL,driverName TEXT NOT NULL,driverNumber TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'Active',remarks TEXT DEFAULT '',ton TEXT DEFAULT '',createdAt TEXT DEFAULT CURRENT_TIMESTAMP,updatedAt TEXT DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS daily_advances(id INTEGER PRIMARY KEY AUTOINCREMENT,date TEXT NOT NULL,vehicleId INTEGER NOT NULL REFERENCES vehicles(id),inchargeName TEXT NOT NULL,ton TEXT NOT NULL DEFAULT '',totalAmount REAL NOT NULL,remarks TEXT DEFAULT '',driverNameOverride TEXT DEFAULT '',driverNumberOverride TEXT DEFAULT '',vehicleNumberOverride TEXT DEFAULT '',cardNumberOverride TEXT DEFAULT '',entryType TEXT DEFAULT 'LOADING',createdAt TEXT DEFAULT CURRENT_TIMESTAMP,updatedAt TEXT DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT UNIQUE NOT NULL,password TEXT NOT NULL,name TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'user',createdAt TEXT DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS user_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT NOT NULL,name TEXT NOT NULL,role TEXT NOT NULL,action TEXT NOT NULL,createdAt TEXT DEFAULT CURRENT_TIMESTAMP);`);
@@ -258,10 +258,11 @@ app.post('/api/import/vehicles', upload.single('file'), (q, r) => { try { const 
 const distPath = path.resolve('dist');
 if (fs.existsSync(distPath)) {
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-        if (!req.path.startsWith('/api')) {
-            res.sendFile(path.join(distPath, 'index.html'));
+    app.use((req, res, next) => {
+        if (req.method === 'GET' && !req.path.startsWith('/api')) {
+            return res.sendFile(path.join(distPath, 'index.html'));
         }
+        next();
     });
 }
 
