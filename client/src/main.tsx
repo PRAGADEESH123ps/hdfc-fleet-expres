@@ -20,7 +20,11 @@ const formatDateIST = (str: string) => {
     const d = new Date(str.includes('Z') || str.includes('+') ? str : str.replace(' ', 'T') + 'Z');
     return d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: '2-digit', year: 'numeric' });
 };
-function Login({ onLogin }: { onLogin: (user: { id: number; username: string; name: string; role: 'admin' | 'user' }) => void }) { const [username, setUsername] = useState(''), [password, setPassword] = useState(''), [error, setError] = useState(''); const handleLogin = async (e: React.FormEvent) => { e.preventDefault(); setError(''); try { const res = await api('/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) }); onLogin(res); } catch (x: any) { setError(x.message || 'Invalid username or password.'); } }; return <div className="loginwrap"><div className="logincard"><h1>HDFC FLEET ADVANCE</h1><p>Sign in to manage daily advances and fleet master</p><form className="loginform" onSubmit={handleLogin}><label>Username<input value={username} onChange={e => setUsername(e.target.value)} required placeholder="Enter username" /></label><label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" /></label>{error && <p className="error">{error}</p>}<button className="primary loginbtn">Sign In</button></form></div></div> }
+function Login({ onLogin, logo }: { onLogin: (user: { id: number; username: string; name: string; role: 'admin' | 'user' }) => void; logo?: string }) {
+    const [username, setUsername] = useState(''), [password, setPassword] = useState(''), [error, setError] = useState('');
+    const handleLogin = async (e: React.FormEvent) => { e.preventDefault(); setError(''); try { const res = await api('/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) }); onLogin(res); } catch (x: any) { setError(x.message || 'Invalid username or password.'); } };
+    return <div className="loginwrap"><div className="logincard">{logo ? <img src={logo} alt="Office Logo" className="loginlogo" /> : null}<h1>HDFC FLEET ADVANCE</h1><p>Sign in to manage daily advances and fleet master</p><form className="loginform" onSubmit={handleLogin}><label>Username<input value={username} onChange={e => setUsername(e.target.value)} required placeholder="Enter username" /></label><label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" /></label>{error && <p className="error">{error}</p>}<button className="primary loginbtn">Sign In</button></form></div></div>
+}
 
 function UserControl({ notify }: { notify: (s: string) => void }) {
     const [users, setUsers] = useState<any[]>([]);
@@ -117,11 +121,62 @@ function UserControl({ notify }: { notify: (s: string) => void }) {
     </section>;
 }
 
+function Settings({ logo, setLogo, notify }: { logo: string; setLogo: (l: string) => void; notify: (s: string) => void }) {
+    const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 3 * 1024 * 1024) return notify('Logo image size must be less than 3MB.');
+        const reader = new FileReader();
+        reader.onload = async () => {
+            const base64 = reader.result as string;
+            await api('/settings/logo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logo: base64 }) });
+            setLogo(base64);
+            notify('Office Logo updated successfully!');
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const removeLogo = async () => {
+        if (confirm('Remove Office Logo?')) {
+            await api('/settings/logo', { method: 'DELETE' });
+            setLogo('');
+            notify('Office Logo removed');
+        }
+    };
+
+    return <section>
+        <h1>Settings</h1>
+        <div className="card">
+            <h2>🏢 Transport Office Branding Logo</h2>
+            <p>Upload your transport office logo to display on sidebar menu and login page.</p>
+            {logo ? <div style={{ marginBottom: 16 }}>
+                <img src={logo} alt="Office Logo" style={{ maxHeight: 90, display: 'block', marginBottom: 12, borderRadius: 8, border: '1px solid #cbd5e1', padding: 8, background: '#fff' }} />
+                <button type="button" className="danger" onClick={removeLogo}>Remove Office Logo</button>
+            </div> : <p style={{ color: '#64748b' }}>No custom logo uploaded yet.</p>}
+            <div style={{ marginTop: 12 }}>
+                <label style={{ display: 'inline-block' }}>
+                    <span className="button primary" style={{ cursor: 'pointer', padding: '10px 16px', display: 'inline-block' }}>📷 Select & Upload Office Logo</span>
+                    <input type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+                </label>
+            </div>
+        </div>
+        <div className="card">
+            <h3>Data Persistence</h3>
+            <p>Your fleet master and daily advance records are saved in Turso Cloud Database.</p>
+        </div>
+    </section>;
+}
+
 function App() {
     const [user, setUser] = useState<{ id: number; username: string; name: string; role: 'admin' | 'user' } | null>(() => { try { return JSON.parse(localStorage.getItem('fleet_user') || 'null') } catch { return null } });
     const [page, setPage] = useState('Dashboard'), [date, setDate] = useState(today()), [toast, setToast] = useState(''), [master, setMaster] = useState<Vehicle[]>([]);
+    const [logo, setLogo] = useState('');
     const notify = (x: string) => { setToast(x); setTimeout(() => setToast(''), 3500) };
     const nav = ['Dashboard', 'Daily Advance', 'Advance History', 'Vehicle Master', 'User Control', 'Import / Export', 'Settings'];
+
+    useEffect(() => {
+        api('/settings/logo').then(r => setLogo(r?.logo || '')).catch(() => { });
+    }, []);
 
     useEffect(() => { if (user) api('/vehicles').then(setMaster) }, [user]);
 
@@ -144,12 +199,14 @@ function App() {
         handleSetUser(null);
     };
 
-
-    if (!user) return <Login onLogin={handleSetUser} />;
+    if (!user) return <Login onLogin={handleSetUser} logo={logo} />;
 
     return <div className="app">
         <aside>
-            <div className="brand">HDFC <span>FLEET</span><small>EXPRESS ADVANCE</small></div>
+            <div className="brand">
+                {logo ? <img src={logo} alt="Office Logo" className="officelogo" /> : null}
+                <div>HDFC <span>FLEET</span><small>EXPRESS ADVANCE</small></div>
+            </div>
             {nav.map(x => {
                 const isAdminOnly = x === 'Vehicle Master' || x === 'User Control';
                 const isLocked = isAdminOnly && user.role !== 'admin';
@@ -173,7 +230,7 @@ function App() {
             {page === 'Vehicle Master' && (user.role === 'admin' ? <Master items={master} refresh={() => api('/vehicles').then(setMaster)} notify={notify} /> : <section><div className="restricted card"><h2>🔒 Restricted Access</h2><p>Only <b>Admin</b> users can create, edit, or manage the Vehicle Master database.</p><p>Daily advance entry and reporting functions remain fully available to all operators.</p></div></section>)}
             {page === 'User Control' && (user.role === 'admin' ? <UserControl notify={notify} /> : <section><div className="restricted card"><h2>🔒 Restricted Access</h2><p>Only <b>Admin</b> users can manage system users and access controls.</p></div></section>)}
             {page === 'Import / Export' && <Master items={master} refresh={() => api('/vehicles').then(setMaster)} notify={notify} />}
-            {page === 'Settings' && <section><h1>Settings</h1><div className="card"><h3>Data safety</h3><p>Your fleet master and daily advance records are stored in the local SQLite database at <code>data/fleet.db</code>. Include this file in your regular backup process.</p></div></section>}
+            {page === 'Settings' && <Settings logo={logo} setLogo={setLogo} notify={notify} />}
         </main>
     </div>
 }

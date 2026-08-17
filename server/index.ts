@@ -28,11 +28,26 @@ async function initDb() {
     await db.execute(`CREATE TABLE IF NOT EXISTS daily_advances(id INTEGER PRIMARY KEY AUTOINCREMENT,date TEXT NOT NULL,vehicleId INTEGER NOT NULL REFERENCES vehicles(id),inchargeName TEXT NOT NULL,ton TEXT NOT NULL DEFAULT '',totalAmount REAL NOT NULL,remarks TEXT DEFAULT '',driverNameOverride TEXT DEFAULT '',driverNumberOverride TEXT DEFAULT '',vehicleNumberOverride TEXT DEFAULT '',cardNumberOverride TEXT DEFAULT '',entryType TEXT DEFAULT 'LOADING',createdAt TEXT DEFAULT CURRENT_TIMESTAMP,updatedAt TEXT DEFAULT CURRENT_TIMESTAMP);`);
     await db.execute(`CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT UNIQUE NOT NULL,password TEXT NOT NULL,name TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'user',createdAt TEXT DEFAULT CURRENT_TIMESTAMP);`);
     await db.execute(`CREATE TABLE IF NOT EXISTS user_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT NOT NULL,name TEXT NOT NULL,role TEXT NOT NULL,action TEXT NOT NULL,createdAt TEXT DEFAULT CURRENT_TIMESTAMP);`);
+    await db.execute(`CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);`);
 }
 initDb().catch(console.error);
 
 const rows = async (sql: string, ...v: any[]) => (await db.execute({ sql, args: v })).rows as any[];
 const one = async (sql: string, ...v: any[]) => (await db.execute({ sql, args: v })).rows[0] as any;
+
+app.get('/api/settings/logo', async (q, r) => {
+    const item = await one("SELECT value FROM settings WHERE key='office_logo'");
+    r.json({ logo: item ? item.value : '' });
+});
+app.post('/api/settings/logo', async (q, r) => {
+    const { logo } = q.body;
+    await db.execute({ sql: "INSERT INTO settings(key, value) VALUES('office_logo', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", args: [logo || ''] });
+    r.json({ success: true, logo });
+});
+app.delete('/api/settings/logo', async (q, r) => {
+    await db.execute("DELETE FROM settings WHERE key='office_logo'");
+    r.json({ success: true });
+});
 
 app.post('/api/login', async (q, r) => {
     const username = String(q.body.username || '').trim().toLowerCase();
