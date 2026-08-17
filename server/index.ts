@@ -13,6 +13,15 @@ const upload = multer({ dest: process.env.VERCEL ? '/tmp/uploads/' : 'uploads/' 
 app.use(cors());
 app.use(express.json());
 
+app.use((req, res, next) => {
+    if (req.url.startsWith('/api/')) {
+        req.url = req.url.slice(4);
+    } else if (req.url === '/api') {
+        req.url = '/';
+    }
+    next();
+});
+
 const tursoUrl = process.env.TURSO_DATABASE_URL || 'libsql://hdfc-fleet-pragadeesh123ps.aws-ap-south-1.turso.io';
 const tursoToken = process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODY5NzIwMDEsImlkIjoiMDFhMDBmYzktYTQwMS03YTQ2LWE0YWEtNjVhYzlmZjBlZDNiIiwia2lkIjoiNEY2Y01HOEVqamtjRE8tODRYdHRaN0Y2aTVIVEg0SmlpazF6bUVzeXd0dyIsInJpZCI6ImU3ZmY4NjllLTEyOWEtNDI4Ny1hNjY4LTNhNDQzMWVlODNiYiJ9.5k_bSNvdcQNMklpACg8eLugP6XLyW9KncbuUOUuTX_AwFF-qkMdDoQ-srcwCknwxVZ0t-BcVokxbsnP4ankqBQ';
 
@@ -35,21 +44,21 @@ initDb().catch(console.error);
 const rows = async (sql: string, ...v: any[]) => (await db.execute({ sql, args: v })).rows as any[];
 const one = async (sql: string, ...v: any[]) => (await db.execute({ sql, args: v })).rows[0] as any;
 
-app.get('/api/settings/logo', async (q, r) => {
+app.get('/settings/logo', async (q, r) => {
     const item = await one("SELECT value FROM settings WHERE key='office_logo'");
     r.json({ logo: item ? item.value : '' });
 });
-app.post('/api/settings/logo', async (q, r) => {
+app.post('/settings/logo', async (q, r) => {
     const { logo } = q.body;
     await db.execute({ sql: "INSERT INTO settings(key, value) VALUES('office_logo', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", args: [logo || ''] });
     r.json({ success: true, logo });
 });
-app.delete('/api/settings/logo', async (q, r) => {
+app.delete('/settings/logo', async (q, r) => {
     await db.execute("DELETE FROM settings WHERE key='office_logo'");
     r.json({ success: true });
 });
 
-app.post('/api/login', async (q, r) => {
+app.post('/login', async (q, r) => {
     const username = String(q.body.username || '').trim().toLowerCase();
     const password = String(q.body.password || '').trim();
     const user = await one('SELECT id,username,name,role FROM users WHERE lower(username)=? AND password=?', username, password);
@@ -58,7 +67,7 @@ app.post('/api/login', async (q, r) => {
     r.json(user);
 });
 
-app.post('/api/logout', async (q, r) => {
+app.post('/logout', async (q, r) => {
     const username = String(q.body?.username || '').trim().toLowerCase();
     const name = String(q.body?.name || username).trim();
     const role = String(q.body?.role || 'user').trim();
@@ -68,9 +77,9 @@ app.post('/api/logout', async (q, r) => {
     r.json({ success: true });
 });
 
-app.get('/api/user_logs', async (q, r) => { r.json(await rows('SELECT * FROM user_logs ORDER BY id DESC LIMIT 100')); });
-app.get('/api/users', async (q, r) => { r.json(await rows('SELECT id,username,name,role,createdAt FROM users ORDER BY id')); });
-app.post('/api/users', async (q, r) => {
+app.get('/user_logs', async (q, r) => { r.json(await rows('SELECT * FROM user_logs ORDER BY id DESC LIMIT 100')); });
+app.get('/users', async (q, r) => { r.json(await rows('SELECT id,username,name,role,createdAt FROM users ORDER BY id')); });
+app.post('/users', async (q, r) => {
     const { username, password, name, role } = q.body;
     if (!username || !password || !name) return r.status(400).json({ message: 'Username, password, and name are required.' });
     try {
@@ -361,7 +370,7 @@ function exportThreeSetsExcel(data: any[], dateText: string) {
     return ws;
 }
 
-app.get('/api/export/advances', async (q, r) => {
+app.get('/export/advances', async (q, r) => {
     const date = norm(q.query.date), all = q.query.all === 'true', three = q.query.sets === 'three', data = await rows(join + (all ? '' : ' WHERE a.date=?') + ' ORDER BY a.date,a.id', ...(all ? [] : [date]));
     const wb = XLSX.utils.book_new(), dateText = date.split('-').reverse().join('.');
     if (three && !all) {
@@ -375,7 +384,7 @@ app.get('/api/export/advances', async (q, r) => {
     r.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').send(buf);
 });
 
-app.get('/api/export/vehicles', async (q, r) => {
+app.get('/export/vehicles', async (q, r) => {
     const data = await rows('SELECT * FROM vehicles ORDER BY lastFourDigits,vehicleNumber');
     const ws = XLSX.utils.json_to_sheet(data.map(v => ({
         'Vehicle No': v.vehicleNumber,
@@ -394,7 +403,7 @@ app.get('/api/export/vehicles', async (q, r) => {
     r.attachment('Vehicle_Master.xlsx').send(buf);
 });
 
-app.get('/api/export/template/vehicles', (q, r) => {
+app.get('/export/template/vehicles', (q, r) => {
     const headers = [['Vehicle No', 'Card No', 'Driver Name', 'Driver No', 'Incharge Name', 'Ton', 'Status', 'Remarks']];
     const samples = [
         ['TN38AB4511', '123456', 'Ajit', '9876543210', 'SILAMBU', '30/35', 'Active', ''],
@@ -409,11 +418,11 @@ app.get('/api/export/template/vehicles', (q, r) => {
     r.attachment('Vehicle_Master_Import_Template.xlsx').send(buf);
 });
 
-app.post('/api/import/vehicles', upload.single('file'), async (q, r) => {
+app.post('/import/vehicles', upload.single('file'), async (q, r) => {
     try {
         const wb = XLSX.readFile(q.file!.path, { raw: false });
         const sheet = wb.Sheets[wb.SheetNames[0]];
-        const incoming = XLSX.utils.sheet_to_json<any>(sheet, { defval: '' });
+        const incoming: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
         let imported = 0, updated = 0, invalid = 0;
         for (const row of incoming) {
             const getVal = (...keys: string[]) => {
