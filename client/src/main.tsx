@@ -208,7 +208,7 @@ function App() {
                 <div>DRIVER <span>ADVANCE</span><small>EXPRESS SYSTEM</small></div>
             </div>
             {nav.map(x => {
-                const isAdminOnly = x === 'Vehicle Master' || x === 'User Control';
+                const isAdminOnly = x === 'Vehicle Master' || x === 'User Control' || x === 'Settings';
                 const isLocked = isAdminOnly && user.role !== 'admin';
                 return <button className={page === x ? 'active' : ''} onClick={() => setPage(x)} key={x}>{x} {isLocked ? '🔒' : ''}</button>;
             })}
@@ -230,7 +230,7 @@ function App() {
             {page === 'Vehicle Master' && (user.role === 'admin' ? <Master items={master} refresh={() => api('/vehicles').then(setMaster)} notify={notify} /> : <section><div className="restricted card"><h2>🔒 Restricted Access</h2><p>Only <b>Admin</b> users can create, edit, or manage the Vehicle Master database.</p><p>Daily advance entry and reporting functions remain fully available to all operators.</p></div></section>)}
             {page === 'User Control' && (user.role === 'admin' ? <UserControl notify={notify} /> : <section><div className="restricted card"><h2>🔒 Restricted Access</h2><p>Only <b>Admin</b> users can manage system users and access controls.</p></div></section>)}
             {page === 'Import / Export' && <Master items={master} refresh={() => api('/vehicles').then(setMaster)} notify={notify} />}
-            {page === 'Settings' && <Settings logo={logo} setLogo={setLogo} notify={notify} />}
+            {page === 'Settings' && (user.role === 'admin' ? <Settings logo={logo} setLogo={setLogo} notify={notify} /> : <section><div className="restricted card"><h2>🔒 Restricted Access</h2><p>Only <b>Admin</b> users can manage system settings and branding logo.</p></div></section>)}
         </main>
     </div>
 }
