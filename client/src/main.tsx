@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'; import { createRoot } from 'react-dom/client'; import './styles.css';
 type Vehicle = { id: number; vehicleNumber: string; lastFourDigits: string; cardNumber: string; driverName: string; driverNumber: string; inchargeName?: string; ton?: string; status: string; remarks: string }; type Advance = { id: number; date: string; vehicleId: number; inchargeName: string; ton: string; totalAmount: number; remarks: string; driverNameOverride?: string } & Vehicle;
-const today = () => new Date().toISOString().slice(0, 10), money = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n); const api = async (path: string, opt?: RequestInit) => {
+const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }), money = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n); const api = async (path: string, opt?: RequestInit) => {
     const r = await fetch('/api' + path, opt);
     if (!r.ok) {
         const txt = await r.text().catch(() => '');
