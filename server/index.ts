@@ -69,13 +69,21 @@ app.delete('/api/settings/logo', async (q, r) => {
     r.json({ success: true });
 });
 app.get('/api/settings/whatsapp', async (q, r) => {
-    const item = await one("SELECT value FROM settings WHERE key='whatsapp_number'");
-    r.json({ number: item ? item.value : '' });
+    const item = await one("SELECT value FROM settings WHERE key='whatsapp_contacts'");
+    const oldItem = await one("SELECT value FROM settings WHERE key='whatsapp_number'");
+    let contacts = [];
+    if (item && item.value) {
+        try { contacts = JSON.parse(item.value); } catch { }
+    } else if (oldItem && oldItem.value) {
+        contacts = [{ name: 'Default Contact', number: oldItem.value }];
+    }
+    r.json({ contacts });
 });
 app.post('/api/settings/whatsapp', async (q, r) => {
-    const { number } = q.body;
-    await db.execute({ sql: "INSERT INTO settings(key, value) VALUES('whatsapp_number', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", args: [norm(number)] });
-    r.json({ success: true, number: norm(number) });
+    const { contacts } = q.body;
+    const safeContacts = Array.isArray(contacts) ? contacts.slice(0, 5).map(c => ({ name: norm(c.name) || 'Contact', number: norm(c.number) })) : [];
+    await db.execute({ sql: "INSERT INTO settings(key, value) VALUES('whatsapp_contacts', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", args: [JSON.stringify(safeContacts)] });
+    r.json({ success: true, contacts: safeContacts });
 });
 
 app.post('/api/login', async (q, r) => {

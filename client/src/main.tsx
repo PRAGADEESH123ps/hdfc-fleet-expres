@@ -122,10 +122,10 @@ function UserControl({ notify }: { notify: (s: string) => void }) {
 }
 
 function Settings({ logo, setLogo, notify }: { logo: string; setLogo: (l: string) => void; notify: (s: string) => void }) {
-    const [waNumber, setWaNumber] = useState('');
+    const [contacts, setContacts] = useState<{ name: string; number: string }[]>([]);
 
     useEffect(() => {
-        api('/settings/whatsapp').then(r => setWaNumber(r?.number || '')).catch(() => { });
+        api('/settings/whatsapp').then(r => setContacts(r?.contacts || [])).catch(() => { });
     }, []);
 
     const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,12 +150,27 @@ function Settings({ logo, setLogo, notify }: { logo: string; setLogo: (l: string
         }
     };
 
-    const saveWaNumber = async (e: React.FormEvent) => {
+    const saveContacts = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await api('/settings/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ number: waNumber }) });
-            notify('Default WhatsApp Share Phone Number saved!');
+            await api('/settings/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contacts }) });
+            notify('Quick WhatsApp Contacts saved successfully!');
         } catch (x: any) { notify(x.message) }
+    };
+
+    const addContact = () => {
+        if (contacts.length >= 5) return notify('Maximum 5 WhatsApp contacts allowed.');
+        setContacts([...contacts, { name: '', number: '' }]);
+    };
+
+    const removeContact = (idx: number) => {
+        setContacts(contacts.filter((_, i) => i !== idx));
+    };
+
+    const updateContact = (idx: number, field: 'name' | 'number', val: string) => {
+        const copy = [...contacts];
+        copy[idx] = { ...copy[idx], [field]: val };
+        setContacts(copy);
     };
 
     return <section>
@@ -174,12 +189,21 @@ function Settings({ logo, setLogo, notify }: { logo: string; setLogo: (l: string
                 </label>
             </div>
         </div>
-        <form className="card" onSubmit={saveWaNumber}>
-            <h2>📲 Default WhatsApp Share Phone Number</h2>
-            <p>Set the default target WhatsApp mobile number (e.g. Owner / Manager). Clicking <b>Share WhatsApp</b> will automatically direct message to this number!</p>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: 12 }}>
-                <input style={{ width: 280, padding: 10, borderRadius: 6, border: '1px solid #cbd5e1' }} value={waNumber} onChange={e => setWaNumber(e.target.value)} placeholder="e.g. 9876543210" />
-                <button type="submit" className="primary">Save WhatsApp Number</button>
+        <form className="card" onSubmit={saveContacts}>
+            <h2>📲 Quick WhatsApp Share Contacts (Up to 5)</h2>
+            <p>Add up to 5 target WhatsApp contacts (e.g. Owner, Manager, Accounts). When clicking <b>Share WhatsApp</b>, you can choose which contact to send to in 1-click!</p>
+
+            {contacts.map((c, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: 12 }}>
+                    <input style={{ flex: 1, padding: 10, borderRadius: 6, border: '1px solid #cbd5e1' }} value={c.name} onChange={e => updateContact(idx, 'name', e.target.value)} placeholder="Name (e.g. Owner / Manager)" required />
+                    <input style={{ flex: 1, padding: 10, borderRadius: 6, border: '1px solid #cbd5e1' }} value={c.number} onChange={e => updateContact(idx, 'number', e.target.value)} placeholder="Mobile No. (e.g. 9876543210)" required />
+                    <button type="button" className="danger" onClick={() => removeContact(idx)}>Remove</button>
+                </div>
+            ))}
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: 16 }}>
+                {contacts.length < 5 && <button type="button" className="button" onClick={addContact}>+ Add WhatsApp Contact</button>}
+                <button type="submit" className="primary">Save All Contacts</button>
             </div>
         </form>
         <div className="card">
@@ -409,7 +433,7 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
             <div className="tableHead">
                 <h2>Daily Entries</h2>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                    <button type="button" style={{ background: '#25D366', color: '#fff', border: 'none' }} className="button" onClick={() => shareWhatsApp(items, date)}>📲 Share WhatsApp</button>
+                    <WhatsAppShareButton items={items} date={date} />
                     <a className="primary button" href={'/api/export/advances?date=' + date + '&sets=three'}>Export 3 Sets Excel</a>
                 </div>
             </div>
@@ -423,21 +447,35 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
     </section>;
 }
 
+function WhatsAppShareButton({ items, date }: { items: Advance[]; date: string }) {
+    const [modal, setModal] = useState(false);
+    const [contacts, setContacts] = useState<{ name: string; number: string }[]>([]);
 
-
-async function shareWhatsApp(items: Advance[], dateStr: string) {
-    if (!items.length) {
-        alert('No advance entries available to share.');
-        return;
-    }
-    let targetPhone = '';
-    try {
-        const res = await api('/settings/whatsapp');
-        if (res?.number) {
-            targetPhone = res.number.replace(/\D/g, '');
-            if (targetPhone.length === 10) targetPhone = '91' + targetPhone;
+    const triggerShare = async () => {
+        if (!items.length) return alert('No advance entries available to share.');
+        try {
+            const res = await api('/settings/whatsapp');
+            const list = res?.contacts || [];
+            setContacts(list);
+            if (list.length > 0) {
+                setModal(true);
+            } else {
+                openWa('', items, date);
+            }
+        } catch {
+            openWa('', items, date);
         }
-    } catch { }
+    };
+
+    return <>
+        <button type="button" style={{ background: '#25D366', color: '#fff', border: 'none', fontWeight: 600 }} className="button" onClick={triggerShare}>📲 Share WhatsApp</button>
+        {modal && <div className="modalback"><div className="modal" style={{ maxWidth: 450 }}><div className="tableHead"><h2>📲 Select WhatsApp Recipient</h2><button onClick={() => setModal(false)}>Close</button></div><p style={{ margin: '8px 0 16px', color: '#64748b' }}>Choose a saved contact to open direct WhatsApp chat:</p><div style={{ display: 'flex', flexDirection: 'column', gap: '10px', margin: '16px 0' }}>{contacts.map((c, i) => <button key={i} style={{ background: '#128C7E', color: '#fff', border: 'none', padding: '12px 16px', borderRadius: 8, textAlign: 'left', fontWeight: 600, cursor: 'pointer', fontSize: '15px' }} onClick={() => { setModal(false); openWa(c.number, items, date); }}>👤 Send to {c.name} ({c.number})</button>)}<button style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '12px 16px', borderRadius: 8, textAlign: 'left', fontWeight: 600, cursor: 'pointer', fontSize: '15px' }} onClick={() => { setModal(false); openWa('', items, date); }}>📲 Select Any Other Contact</button></div></div></div>}
+    </>;
+}
+
+function openWa(rawPhone: string, items: Advance[], dateStr: string) {
+    let targetPhone = rawPhone.replace(/\D/g, '');
+    if (targetPhone.length === 10) targetPhone = '91' + targetPhone;
 
     const dText = dateStr ? dateStr.split('-').reverse().join('.') : new Date().toLocaleDateString('en-GB').replace(/\//g, '.');
     let text = `🚛 *DRIVER ADVANCE SUMMARY*\n📅 *Date:* ${dText}\n\n`;
@@ -511,7 +549,7 @@ function Table({ items, onEdit, onDelete, compact }: { items: Advance[]; onEdit?
 }
 
 function Master({ items, refresh, notify }: { items: Vehicle[]; refresh: () => void; notify: (s: string) => void }) { const blank = { vehicleNumber: '', cardNumber: '', driverName: '', driverNumber: '', inchargeName: '', ton: '', status: 'Active', remarks: '' }; const [f, setF] = useState<any>(blank), [edit, setEdit] = useState<Vehicle | null>(null), [q, setQ] = useState(''); const save = async (e: React.FormEvent) => { e.preventDefault(); try { await api('/vehicles' + (edit ? '/' + edit.id : ''), { method: edit ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) }); notify(edit ? 'Vehicle updated' : 'Vehicle added'); setF(blank); setEdit(null); refresh() } catch (x: any) { notify(x.message) } }; const filtered = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); const imp = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files?.[0]) return; const fd = new FormData(); fd.append('file', e.target.files[0]); try { const x = await api('/import/vehicles', { method: 'POST', body: fd }); notify(`Imported ${x.imported}; duplicates ${x.duplicates}; invalid ${x.invalid}`); refresh() } catch (x: any) { notify(x.message) } }; return <section><div className="top"><div><h1>Vehicle Master</h1><p>The last four digits are derived automatically from the vehicle number for lookup.</p></div><div><a className="button" href="/api/export/template/vehicles">Download Import Template</a><a className="button" href="/api/export/vehicles">Export Excel</a><label className="button">Import Vehicle Master<input type="file" accept=".xlsx,.csv" onChange={imp} hidden /></label></div></div><form className="card masterform" onSubmit={save}><h2>{edit ? 'Edit Vehicle' : 'Add Vehicle'}</h2>{[['vehicleNumber', 'Full Vehicle Number'], ['cardNumber', 'Card Number'], ['driverName', 'Driver Name'], ['driverNumber', 'Driver Number'], ['inchargeName', 'Default Incharge Name (e.g. SILAMBU, SIVA)'], ['ton', 'Default TON / Capacity (e.g. 30/35)'], ['remarks', 'Remarks']].map(([k, l]) => <label key={k}>{l}<input value={f[k] || ''} onChange={e => setF({ ...f, [k]: e.target.value })} required={!['remarks', 'ton', 'inchargeName', 'driverNumber'].includes(k)} /></label>)}<label>Status<select value={f.status} onChange={e => setF({ ...f, status: e.target.value })}><option>Active</option><option>Inactive</option></select></label><div className="actions"><button className="primary">{edit ? 'Save Vehicle' : 'Add Vehicle'}</button>{edit && <button type="button" onClick={() => { setEdit(null); setF(blank) }}>Cancel</button>}</div></form><div className="card"><input className="search" placeholder="Search vehicle, driver or card number" value={q} onChange={e => setQ(e.target.value)} /><div className="tablewrap"><table><thead><tr>{['VEHICLE NO', 'CARD NO', 'DRIVER', 'DRIVER NO', 'INCHARGE NAME', 'TON', 'STATUS', 'REMARKS', 'ACTIONS'].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>{filtered.map(x => <tr key={x.id}><td>{x.vehicleNumber}</td><td>{x.cardNumber}</td><td>{x.driverName}</td><td>{x.driverNumber}</td><td>{x.inchargeName || '-'}</td><td>{x.ton || '-'}</td><td><span className={'badge ' + x.status}>{x.status}</span></td><td>{x.remarks}</td><td><button onClick={() => { setEdit(x); setF(x); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Edit</button><button onClick={async () => { if (confirm('Delete this vehicle?')) try { await api('/vehicles/' + x.id, { method: 'DELETE' }); refresh(); notify('Vehicle deleted') } catch (e: any) { notify(e.message) } }} className="danger">Delete</button></td></tr>)}</tbody></table></div></div></section> }
-function History({ notify }: { notify: (s: string) => void }) { const [items, setItems] = useState<Advance[]>([]), [date, setDate] = useState(''), [q, setQ] = useState(''); useEffect(() => { api('/advances' + (date ? '?date=' + date : '')).then(setItems) }, [date]); const shown = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); return <section><div className="top"><div><h1>Advance History</h1><p>Search prior daily advance records. <strong style={{ fontWeight: 700, color: '#0284c7' }}>(Retaining Recent 15-Day Active Advance Records)</strong></p></div><div><button type="button" style={{ background: '#25D366', color: '#fff', border: 'none' }} className="button" onClick={() => shareWhatsApp(shown, date)}>📲 Share WhatsApp</button><a className="button" href={'/api/export/advances?date=' + date}>Export Selected Date</a><a className="primary button" href="/api/export/advances?all=true">Export All Records</a></div></div><div className="card filters"><label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label><label>Search<input placeholder="Vehicle, last 4, driver, card, incharge" value={q} onChange={e => setQ(e.target.value)} /></label></div><div className="card"><Table items={shown} /></div></section> }
+function History({ notify }: { notify: (s: string) => void }) { const [items, setItems] = useState<Advance[]>([]), [date, setDate] = useState(''), [q, setQ] = useState(''); useEffect(() => { api('/advances' + (date ? '?date=' + date : '')).then(setItems) }, [date]); const shown = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); return <section><div className="top"><div><h1>Advance History</h1><p>Search prior daily advance records. <strong style={{ fontWeight: 700, color: '#0284c7' }}>(Retaining Recent 15-Day Active Advance Records)</strong></p></div><div><WhatsAppShareButton items={shown} date={date} /><a className="button" href={'/api/export/advances?date=' + date}>Export Selected Date</a><a className="primary button" href="/api/export/advances?all=true">Export All Records</a></div></div><div className="card filters"><label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label><label>Search<input placeholder="Vehicle, last 4, driver, card, incharge" value={q} onChange={e => setQ(e.target.value)} /></label></div><div className="card"><Table items={shown} /></div></section> }
 type Parsed = { lastFourDigits: string; totalAmount: number; remarks: string; driverNameOverride: string; ton: string; isPersonal: boolean; isExtra: boolean; found: boolean };
 function parseMessage(message: string, master: Vehicle[]): Parsed[] {
     return message.split(/\r?\n/).map(line => {
