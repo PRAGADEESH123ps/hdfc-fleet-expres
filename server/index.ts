@@ -24,7 +24,7 @@ const db = createClient({
 const norm = (x: any) => String(x ?? '').trim();
 
 async function initDb() {
-    await db.execute(`CREATE TABLE IF NOT EXISTS vehicles(id INTEGER PRIMARY KEY AUTOINCREMENT,vehicleNumber TEXT NOT NULL,lastFourDigits TEXT NOT NULL UNIQUE,cardNumber TEXT NOT NULL,driverName TEXT NOT NULL,driverNumber TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'Active',remarks TEXT DEFAULT '',ton TEXT DEFAULT '',inchargeName TEXT DEFAULT '',createdAt TEXT DEFAULT CURRENT_TIMESTAMP,updatedAt TEXT DEFAULT CURRENT_TIMESTAMP);`);
+    await db.execute(`CREATE TABLE IF NOT EXISTS vehicles(id INTEGER PRIMARY KEY AUTOINCREMENT,vehicleNumber TEXT NOT NULL,lastFourDigits TEXT NOT NULL,cardNumber TEXT NOT NULL,driverName TEXT NOT NULL,driverNumber TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'Active',remarks TEXT DEFAULT '',ton TEXT DEFAULT '',inchargeName TEXT DEFAULT '',createdAt TEXT DEFAULT CURRENT_TIMESTAMP,updatedAt TEXT DEFAULT CURRENT_TIMESTAMP);`);
     await db.execute(`CREATE TABLE IF NOT EXISTS daily_advances(id INTEGER PRIMARY KEY AUTOINCREMENT,date TEXT NOT NULL,vehicleId INTEGER NOT NULL REFERENCES vehicles(id),inchargeName TEXT NOT NULL,ton TEXT NOT NULL DEFAULT '',totalAmount REAL NOT NULL,remarks TEXT DEFAULT '',driverNameOverride TEXT DEFAULT '',driverNumberOverride TEXT DEFAULT '',vehicleNumberOverride TEXT DEFAULT '',cardNumberOverride TEXT DEFAULT '',entryType TEXT DEFAULT 'LOADING',createdAt TEXT DEFAULT CURRENT_TIMESTAMP,updatedAt TEXT DEFAULT CURRENT_TIMESTAMP);`);
     await db.execute(`CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT UNIQUE NOT NULL,password TEXT NOT NULL,name TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'user',createdAt TEXT DEFAULT CURRENT_TIMESTAMP);`);
     await db.execute(`CREATE TABLE IF NOT EXISTS user_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT NOT NULL,name TEXT NOT NULL,role TEXT NOT NULL,action TEXT NOT NULL,createdAt TEXT DEFAULT CURRENT_TIMESTAMP);`);
@@ -106,22 +106,18 @@ app.get('/api/vehicles/lookup/:last4', async (q, r) => {
 app.post('/api/vehicles', async (q, r) => {
     const v = vehiclePayload(q.body);
     if (!valid(v)) return r.status(400).json({ message: 'Please complete all required vehicle fields; last 4 must contain exactly 4 digits.' });
-    try {
-        const x = await db.execute({ sql: 'INSERT INTO vehicles(vehicleNumber,lastFourDigits,cardNumber,driverName,driverNumber,inchargeName,status,remarks,ton) VALUES(?,?,?,?,?,?,?,?,?)', args: [v.vehicleNumber, v.lastFourDigits, v.cardNumber, v.driverName, v.driverNumber, v.inchargeName, v.status, v.remarks, v.ton] });
-        r.status(201).json(await one('SELECT * FROM vehicles WHERE id=?', Number(x.lastInsertRowid)));
-    } catch {
-        r.status(409).json({ message: 'A vehicle with these last 4 digits already exists.' });
-    }
+    const dup = await one('SELECT id FROM vehicles WHERE lower(vehicleNumber)=lower(?)', v.vehicleNumber);
+    if (dup) return r.status(409).json({ message: `Vehicle Number ${v.vehicleNumber} already exists in Master list.` });
+    const x = await db.execute({ sql: 'INSERT INTO vehicles(vehicleNumber,lastFourDigits,cardNumber,driverName,driverNumber,inchargeName,status,remarks,ton) VALUES(?,?,?,?,?,?,?,?,?)', args: [v.vehicleNumber, v.lastFourDigits, v.cardNumber, v.driverName, v.driverNumber, v.inchargeName, v.status, v.remarks, v.ton] });
+    r.status(201).json(await one('SELECT * FROM vehicles WHERE id=?', Number(x.lastInsertRowid)));
 });
 app.put('/api/vehicles/:id', async (q, r) => {
     const v = vehiclePayload(q.body);
     if (!valid(v)) return r.status(400).json({ message: 'Invalid vehicle data' });
-    try {
-        await db.execute({ sql: 'UPDATE vehicles SET vehicleNumber=?,lastFourDigits=?,cardNumber=?,driverName=?,driverNumber=?,inchargeName=?,status=?,remarks=?,ton=?,updatedAt=CURRENT_TIMESTAMP WHERE id=?', args: [v.vehicleNumber, v.lastFourDigits, v.cardNumber, v.driverName, v.driverNumber, v.inchargeName, v.status, v.remarks, v.ton, Number(q.params.id)] });
-        r.json(await one('SELECT * FROM vehicles WHERE id=?', Number(q.params.id)));
-    } catch {
-        r.status(409).json({ message: 'Last 4 digits must be unique.' });
-    }
+    const dup = await one('SELECT id FROM vehicles WHERE lower(vehicleNumber)=lower(?) AND id!=?', v.vehicleNumber, Number(q.params.id));
+    if (dup) return r.status(409).json({ message: `Vehicle Number ${v.vehicleNumber} already exists in Master list.` });
+    await db.execute({ sql: 'UPDATE vehicles SET vehicleNumber=?,lastFourDigits=?,cardNumber=?,driverName=?,driverNumber=?,inchargeName=?,status=?,remarks=?,ton=?,updatedAt=CURRENT_TIMESTAMP WHERE id=?', args: [v.vehicleNumber, v.lastFourDigits, v.cardNumber, v.driverName, v.driverNumber, v.inchargeName, v.status, v.remarks, v.ton, Number(q.params.id)] });
+    r.json(await one('SELECT * FROM vehicles WHERE id=?', Number(q.params.id)));
 });
 app.delete('/api/vehicles/:id', async (q, r) => {
     try {
