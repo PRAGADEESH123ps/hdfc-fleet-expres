@@ -457,11 +457,7 @@ function WhatsAppShareButton({ items, date }: { items: Advance[]; date: string }
             const res = await api('/settings/whatsapp');
             const list = res?.contacts || [];
             setContacts(list);
-            if (list.length > 0) {
-                setModal(true);
-            } else {
-                openWa('', items, date);
-            }
+            setModal(true);
         } catch {
             openWa('', items, date);
         }
@@ -469,7 +465,12 @@ function WhatsAppShareButton({ items, date }: { items: Advance[]; date: string }
 
     return <>
         <button type="button" style={{ background: '#25D366', color: '#fff', border: 'none', fontWeight: 600 }} className="button" onClick={triggerShare}>📲 Share WhatsApp</button>
-        {modal && <div className="modalback"><div className="modal" style={{ maxWidth: 450 }}><div className="tableHead"><h2>📲 Select WhatsApp Recipient</h2><button onClick={() => setModal(false)}>Close</button></div><p style={{ margin: '8px 0 16px', color: '#64748b' }}>Choose a saved contact to open direct WhatsApp chat:</p><div style={{ display: 'flex', flexDirection: 'column', gap: '10px', margin: '16px 0' }}>{contacts.map((c, i) => <button key={i} style={{ background: '#128C7E', color: '#fff', border: 'none', padding: '12px 16px', borderRadius: 8, textAlign: 'left', fontWeight: 600, cursor: 'pointer', fontSize: '15px' }} onClick={() => { setModal(false); openWa(c.number, items, date); }}>👤 Send to {c.name} ({c.number})</button>)}<button style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '12px 16px', borderRadius: 8, textAlign: 'left', fontWeight: 600, cursor: 'pointer', fontSize: '15px' }} onClick={() => { setModal(false); openWa('', items, date); }}>📲 Select Any Other Contact</button></div></div></div>}
+        {modal && <div className="modalback"><div className="modal" style={{ maxWidth: 460 }}><div className="tableHead"><h2>📲 Select WhatsApp Recipient</h2><button onClick={() => setModal(false)}>Close</button></div><p style={{ margin: '8px 0 16px', color: '#64748b' }}>Choose a saved contact or share directly to your Transport Group:</p><div style={{ display: 'flex', flexDirection: 'column', gap: '10px', margin: '16px 0' }}>
+            <button style={{ background: '#25D366', color: '#fff', border: 'none', padding: '14px 16px', borderRadius: 8, textAlign: 'left', fontWeight: 700, cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => { setModal(false); openWa('', items, date); }}>👥 Share to Transport WhatsApp Group</button>
+            {contacts.length > 0 && <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '4px 0' }} />}
+            {contacts.map((c, i) => <button key={i} style={{ background: '#128C7E', color: '#fff', border: 'none', padding: '12px 16px', borderRadius: 8, textAlign: 'left', fontWeight: 600, cursor: 'pointer', fontSize: '15px' }} onClick={() => { setModal(false); openWa(c.number, items, date); }}>👤 Send to {c.name} ({c.number})</button>)}
+            <button style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '12px 16px', borderRadius: 8, textAlign: 'left', fontWeight: 600, cursor: 'pointer', fontSize: '15px' }} onClick={() => { setModal(false); openWa('', items, date); }}>📱 Select Any Other Chat / Contact</button>
+        </div></div></div>}
     </>;
 }
 
