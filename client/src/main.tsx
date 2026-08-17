@@ -23,7 +23,7 @@ const formatDateIST = (str: string) => {
 function Login({ onLogin, logo }: { onLogin: (user: { id: number; username: string; name: string; role: 'admin' | 'user' }) => void; logo?: string }) {
     const [username, setUsername] = useState(''), [password, setPassword] = useState(''), [error, setError] = useState('');
     const handleLogin = async (e: React.FormEvent) => { e.preventDefault(); setError(''); try { const res = await api('/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) }); onLogin(res); } catch (x: any) { setError(x.message || 'Invalid username or password.'); } };
-    return <div className="loginwrap"><div className="logincard">{logo ? <img src={logo} alt="Office Logo" className="loginlogo" /> : null}<h1>HDFC FLEET ADVANCE</h1><p>Sign in to manage daily advances and fleet master</p><form className="loginform" onSubmit={handleLogin}><label>Username<input value={username} onChange={e => setUsername(e.target.value)} required placeholder="Enter username" /></label><label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" /></label>{error && <p className="error">{error}</p>}<button className="primary loginbtn">Sign In</button></form></div></div>
+    return <div className="loginwrap"><div className="logincard">{logo ? <img src={logo} alt="Office Logo" className="loginlogo" /> : null}<h1>DRIVER ADVANCE</h1><p>Sign in to manage daily advances and fleet master</p><form className="loginform" onSubmit={handleLogin}><label>Username<input value={username} onChange={e => setUsername(e.target.value)} required placeholder="Enter username" /></label><label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" /></label>{error && <p className="error">{error}</p>}<button className="primary loginbtn">Sign In</button></form></div></div>
 }
 
 function UserControl({ notify }: { notify: (s: string) => void }) {
@@ -205,7 +205,7 @@ function App() {
         <aside>
             <div className="brand">
                 {logo ? <img src={logo} alt="Office Logo" className="officelogo" /> : null}
-                <div>HDFC <span>FLEET</span><small>EXPRESS ADVANCE</small></div>
+                <div>DRIVER <span>ADVANCE</span><small>EXPRESS SYSTEM</small></div>
             </div>
             {nav.map(x => {
                 const isAdminOnly = x === 'Vehicle Master' || x === 'User Control';
@@ -328,7 +328,7 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
 
     return <section>
         <div className="top">
-            <div><h1>HDFC FLEET EXPRESS CARD</h1><p>Daily Advance · {date.split('-').reverse().join('.')}</p></div>
+            <div><h1>DRIVER ADVANCE ENTRY</h1><p>Daily Advance · {date.split('-').reverse().join('.')}</p></div>
             <div className="dateNav">
                 <button onClick={() => changeDate(-1)}>← Previous Day</button>
                 <button onClick={() => setDate(today())}>Today</button>
