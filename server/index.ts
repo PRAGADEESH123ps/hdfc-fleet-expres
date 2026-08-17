@@ -255,5 +255,16 @@ app.get('/api/export/vehicles', (q, r) => { const data = rows('SELECT * FROM veh
 app.post('/api/import/vehicles', upload.single('file'), (q, r) => { try { const wb = XLSX.readFile(q.file!.path, { raw: false }); const sheet = wb.Sheets[wb.SheetNames[0]]; const incoming = XLSX.utils.sheet_to_json<any>(sheet, { defval: '' }); let imported = 0, updated = 0, invalid = 0; for (const row of incoming) { const getVal = (...keys: string[]) => { for (const k of Object.keys(row)) { const cleanK = k.trim().toLowerCase().replace(/[^a-z0-9]/g, ''); if (keys.some(key => cleanK === key.toLowerCase().replace(/[^a-z0-9]/g, ''))) return String(row[k]).trim(); } return ''; }; const vehNo = getVal('vehicleno', 'fullvehiclenumber', 'vehiclenumber', 'vehicle'); const last4 = getVal('last4', 'lastfourdigits', 'last4digits'); const cardNo = getVal('cardno', 'cardnumber', 'card'); const driverName = getVal('drivername', 'driver'); const driverNumber = getVal('driverno', 'drivernumber', 'drivermobile', 'mobile'); const inchargeName = getVal('inchargename', 'incharge', 'incharge name'); const ton = getVal('ton', 'capacity'); const status = getVal('status'); const remarks = getVal('remarks'); const v = vehiclePayload({ vehicleNumber: vehNo, lastFourDigits: last4, cardNumber: cardNo, driverName: driverName, driverNumber: driverNumber, inchargeName: inchargeName, status: status, remarks: remarks, ton: ton }); if (!valid(v)) { invalid++; continue } const existing = one('SELECT id FROM vehicles WHERE lastFourDigits=?', v.lastFourDigits); if (existing) { db.prepare('UPDATE vehicles SET vehicleNumber=?,cardNumber=?,driverName=?,driverNumber=?,inchargeName=?,status=?,remarks=?,ton=?,updatedAt=CURRENT_TIMESTAMP WHERE id=?').run(v.vehicleNumber, v.cardNumber, v.driverName, v.driverNumber, v.inchargeName, v.status, v.remarks, v.ton, (existing as any).id); updated++; } else { db.prepare('INSERT INTO vehicles(vehicleNumber,lastFourDigits,cardNumber,driverName,driverNumber,inchargeName,status,remarks,ton) VALUES(?,?,?,?,?,?,?,?,?)').run(v.vehicleNumber, v.lastFourDigits, v.cardNumber, v.driverName, v.driverNumber, v.inchargeName, v.status, v.remarks, v.ton); imported++; } } fs.unlinkSync(q.file!.path); r.json({ imported, updated, invalid }) } catch (e) { r.status(400).json({ message: 'Unable to import file. Check the expected column names.' }) } });
 
 
-app.listen(3001, () => console.log('Fleet API running on http://localhost:3001'));
+const distPath = path.resolve('dist');
+if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+        if (!req.path.startsWith('/api')) {
+            res.sendFile(path.join(distPath, 'index.html'));
+        }
+    });
+}
+
+const PORT = Number(process.env.PORT) || 3001;
+app.listen(PORT, '0.0.0.0', () => console.log(`Fleet API running on port ${PORT}`));
 
