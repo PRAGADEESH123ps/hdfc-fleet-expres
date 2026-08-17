@@ -23,12 +23,22 @@ const db = createClient({
 
 const norm = (x: any) => String(x ?? '').trim();
 
+async function cleanupOldData() {
+    try {
+        await db.execute("DELETE FROM daily_advances WHERE date < date('now', '-15 days');");
+        await db.execute("DELETE FROM user_logs WHERE createdAt < datetime('now', '-15 days');");
+    } catch (e) {
+        console.error('Data cleanup error:', e);
+    }
+}
+
 async function initDb() {
     await db.execute(`CREATE TABLE IF NOT EXISTS vehicles(id INTEGER PRIMARY KEY AUTOINCREMENT,vehicleNumber TEXT NOT NULL,lastFourDigits TEXT NOT NULL,cardNumber TEXT NOT NULL,driverName TEXT NOT NULL,driverNumber TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'Active',remarks TEXT DEFAULT '',ton TEXT DEFAULT '',inchargeName TEXT DEFAULT '',createdAt TEXT DEFAULT CURRENT_TIMESTAMP,updatedAt TEXT DEFAULT CURRENT_TIMESTAMP);`);
     await db.execute(`CREATE TABLE IF NOT EXISTS daily_advances(id INTEGER PRIMARY KEY AUTOINCREMENT,date TEXT NOT NULL,vehicleId INTEGER NOT NULL REFERENCES vehicles(id),inchargeName TEXT NOT NULL,ton TEXT NOT NULL DEFAULT '',totalAmount REAL NOT NULL,remarks TEXT DEFAULT '',driverNameOverride TEXT DEFAULT '',driverNumberOverride TEXT DEFAULT '',vehicleNumberOverride TEXT DEFAULT '',cardNumberOverride TEXT DEFAULT '',entryType TEXT DEFAULT 'LOADING',createdAt TEXT DEFAULT CURRENT_TIMESTAMP,updatedAt TEXT DEFAULT CURRENT_TIMESTAMP);`);
     await db.execute(`CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT UNIQUE NOT NULL,password TEXT NOT NULL,name TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'user',createdAt TEXT DEFAULT CURRENT_TIMESTAMP);`);
     await db.execute(`CREATE TABLE IF NOT EXISTS user_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT NOT NULL,name TEXT NOT NULL,role TEXT NOT NULL,action TEXT NOT NULL,createdAt TEXT DEFAULT CURRENT_TIMESTAMP);`);
     await db.execute(`CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);`);
+    await cleanupOldData();
 }
 initDb().catch(console.error);
 
@@ -146,6 +156,7 @@ app.delete('/api/vehicles/:id', async (q, r) => {
 const join = `SELECT a.*,COALESCE(NULLIF(a.vehicleNumberOverride,''),v.vehicleNumber) AS vehicleNumber,v.lastFourDigits,COALESCE(NULLIF(a.cardNumberOverride,''),v.cardNumber) AS cardNumber,COALESCE(NULLIF(a.driverNameOverride,''),v.driverName) AS driverName,COALESCE(NULLIF(a.driverNumberOverride,''),v.driverNumber) AS driverNumber,COALESCE(NULLIF(a.ton,''),v.ton) AS ton FROM daily_advances a JOIN vehicles v ON v.id=a.vehicleId`;
 
 app.get('/api/advances', async (q, r) => {
+    await cleanupOldData();
     const date = norm(q.query.date);
     r.json(await rows(join + (date ? ' WHERE a.date=?' : '') + ' ORDER BY a.id DESC', ...(date ? [date] : [])));
 });
