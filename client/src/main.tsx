@@ -339,8 +339,72 @@ function Table({ items, onEdit, onDelete, compact }: { items: Advance[]; onEdit?
 function Master({ items, refresh, notify }: { items: Vehicle[]; refresh: () => void; notify: (s: string) => void }) { const blank = { vehicleNumber: '', cardNumber: '', driverName: '', driverNumber: '', inchargeName: '', ton: '', status: 'Active', remarks: '' }; const [f, setF] = useState<any>(blank), [edit, setEdit] = useState<Vehicle | null>(null), [q, setQ] = useState(''); const save = async (e: React.FormEvent) => { e.preventDefault(); try { await api('/vehicles' + (edit ? '/' + edit.id : ''), { method: edit ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) }); notify(edit ? 'Vehicle updated' : 'Vehicle added'); setF(blank); setEdit(null); refresh() } catch (x: any) { notify(x.message) } }; const filtered = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); const imp = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files?.[0]) return; const fd = new FormData(); fd.append('file', e.target.files[0]); try { const x = await api('/import/vehicles', { method: 'POST', body: fd }); notify(`Imported ${x.imported}; duplicates ${x.duplicates}; invalid ${x.invalid}`); refresh() } catch (x: any) { notify(x.message) } }; return <section><div className="top"><div><h1>Vehicle Master</h1><p>The last four digits are derived automatically from the vehicle number for lookup.</p></div><div><a className="button" href="/api/export/template/vehicles">Download Import Template</a><a className="button" href="/api/export/vehicles">Export Excel</a><label className="button">Import Vehicle Master<input type="file" accept=".xlsx,.csv" onChange={imp} hidden /></label></div></div><form className="card masterform" onSubmit={save}><h2>{edit ? 'Edit Vehicle' : 'Add Vehicle'}</h2>{[['vehicleNumber', 'Full Vehicle Number'], ['cardNumber', 'Card Number'], ['driverName', 'Driver Name'], ['driverNumber', 'Driver Number'], ['inchargeName', 'Default Incharge Name (e.g. SILAMBU, SIVA)'], ['ton', 'Default TON / Capacity (e.g. 30/35)'], ['remarks', 'Remarks']].map(([k, l]) => <label key={k}>{l}<input value={f[k] || ''} onChange={e => setF({ ...f, [k]: e.target.value })} required={!['remarks', 'ton', 'inchargeName', 'driverNumber'].includes(k)} /></label>)}<label>Status<select value={f.status} onChange={e => setF({ ...f, status: e.target.value })}><option>Active</option><option>Inactive</option></select></label><div className="actions"><button className="primary">{edit ? 'Save Vehicle' : 'Add Vehicle'}</button>{edit && <button type="button" onClick={() => { setEdit(null); setF(blank) }}>Cancel</button>}</div></form><div className="card"><input className="search" placeholder="Search vehicle, driver or card number" value={q} onChange={e => setQ(e.target.value)} /><div className="tablewrap"><table><thead><tr>{['VEHICLE NO', 'CARD NO', 'DRIVER', 'DRIVER NO', 'INCHARGE NAME', 'TON', 'STATUS', 'REMARKS', 'ACTIONS'].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>{filtered.map(x => <tr key={x.id}><td>{x.vehicleNumber}</td><td>{x.cardNumber}</td><td>{x.driverName}</td><td>{x.driverNumber}</td><td>{x.inchargeName || '-'}</td><td>{x.ton || '-'}</td><td><span className={'badge ' + x.status}>{x.status}</span></td><td>{x.remarks}</td><td><button onClick={() => { setEdit(x); setF(x); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Edit</button><button onClick={async () => { if (confirm('Delete this vehicle?')) try { await api('/vehicles/' + x.id, { method: 'DELETE' }); refresh(); notify('Vehicle deleted') } catch (e: any) { notify(e.message) } }} className="danger">Delete</button></td></tr>)}</tbody></table></div></div></section> }
 function History({ notify }: { notify: (s: string) => void }) { const [items, setItems] = useState<Advance[]>([]), [date, setDate] = useState(''), [q, setQ] = useState(''); useEffect(() => { api('/advances' + (date ? '?date=' + date : '')).then(setItems) }, [date]); const shown = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); return <section><div className="top"><div><h1>Advance History</h1><p>Search prior daily advance records.</p></div><div><a className="button" href={'/api/export/advances?date=' + date}>Export Selected Date</a><a className="primary button" href="/api/export/advances?all=true">Export All Records</a></div></div><div className="card filters"><label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label><label>Search<input placeholder="Vehicle, last 4, driver, card, incharge" value={q} onChange={e => setQ(e.target.value)} /></label></div><div className="card"><Table items={shown} /></div></section> }
 type Parsed = { lastFourDigits: string; totalAmount: number; remarks: string; driverNameOverride: string; ton: string; isPersonal: boolean; isExtra: boolean; found: boolean };
-function parseMessage(message: string, master: Vehicle[]): Parsed[] { return message.split(/\r?\n/).map(line => { const m = line.match(/^\s*(?:\d+\)?\s*)?([A-Za-z]?\d{4})\s*-\s*([\d,]+)\s*(.*)$/i); if (!m) return null; const last = m[1].replace(/\D/g, '').slice(-4), amount = Number(m[2].replace(/,/g, '')), rest = m[3].trim(), personal = rest.match(/\*?\s*personal\s+a\w*\s+driver\s+name\s*:\s*([^*]+)\*?/i); const matchV = master.find(v => v.status === 'Active' && v.lastFourDigits === last); const isPA = matchV?.cardNumber?.trim().toUpperCase() === 'P/A' || matchV?.cardNumber?.trim().toUpperCase() === 'PA'; const isPersonal = !!personal || isPA; const isExtra = !isPersonal && /\bextra\b/i.test(rest); return { lastFourDigits: last, totalAmount: amount, remarks: rest.replace(/\*?\s*personal\s+a\w*\s+driver\s+name\s*:\s*[^*]+\*?/i, '').trim(), driverNameOverride: personal?.[1].trim() || '', ton: matchV?.ton || '', isPersonal, isExtra, found: !!matchV } }).filter(Boolean) as Parsed[] }
-function BulkPaste({ date, master, notify }: { date: string; master: Vehicle[]; notify: (x: string) => void }) { const [open, setOpen] = useState(false), [message, setMessage] = useState(''), [incharge, setIncharge] = useState(''), [ton, setTon] = useState(''), [entryType, setEntryType] = useState('LOADING'), [parsed, setParsed] = useState<Parsed[]>([]); const parse = () => setParsed(parseMessage(message, master)); const save = async () => { if (!incharge || !parsed.length) return notify('Enter an incharge name and preview at least one entry.'); try { const r = await api('/advances/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, inchargeName: incharge, ton, entryType, entries: parsed, allowUnmatched: true }) }); notify(`Added ${r.added}; pending ${r.pending}; duplicates ${r.duplicates}`); setOpen(false); setMessage(''); setParsed([]); window.dispatchEvent(new Event('advancesChanged')) } catch (e: any) { notify(e.message) } }; return <>{open && <div className="modalback"><div className="modal"><div className="tableHead"><h2>Paste Today's Advance Message</h2><button onClick={() => setOpen(false)}>Close</button></div><p>Choose the set before saving. Vehicles with Card No 'P/A' go to PERSONAL. Lines containing 'EXTRA' in remarks go to EXTRA automatically.</p><textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Paste your WhatsApp advance message here..." /><div className="bulkfields"><label>Set Type<select value={entryType} onChange={e => setEntryType(e.target.value)}><option value="LOADING">Loading</option><option value="EXTRA">Extra</option></select></label><label>Incharge Name<input value={incharge} onChange={e => setIncharge(e.target.value)} required /></label><label>Default TON (Fallback)<input value={ton} onChange={e => setTon(e.target.value)} placeholder="e.g. 30/35" /></label><button onClick={parse}>Preview Message</button></div>{parsed.length > 0 && <><div className="preview"><b>{parsed.length} entries detected</b><span>{parsed.filter(x => !x.found).length} will be added as PENDING</span></div><div className="tablewrap"><table><thead><tr><th>LAST 4</th><th>TON (AUTO)</th><th>AMOUNT</th><th>REMARKS</th><th>PERSONAL DRIVER</th><th>SET</th><th>STATUS</th></tr></thead><tbody>{parsed.map((x, i) => <tr key={i}><td>{x.lastFourDigits}</td><td><input style={{ width: 80 }} value={x.ton} onChange={e => { const updated = [...parsed]; updated[i].ton = e.target.value; setParsed(updated) }} placeholder={ton || 'TON'} /></td><td>{money(x.totalAmount)}</td><td>{x.remarks}</td><td>{x.driverNameOverride || '-'}</td><td>{x.isPersonal ? 'PERSONAL' : (x.isExtra ? 'EXTRA' : entryType)}</td><td>{x.found ? 'Ready' : 'Pending - update in Excel'}</td></tr>)}</tbody></table></div><div className="actions"><button className="primary" onClick={save}>Add All {parsed.length} Entries</button></div></>}</div></div>}<div className="pasteactions"><a className="button" href={'/api/export/advances?date=' + date + '&sets=three'}>Export 3 Sets Excel</a><button className="pastebutton" onClick={() => setOpen(true)}>Paste Advance Message</button></div></> }
+function parseMessage(message: string, master: Vehicle[]): Parsed[] {
+    return message.split(/\r?\n/).map(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return null;
+
+        const digitMatch = trimmed.match(/([A-Za-z]{2}\s*\d{1,2}\s*[A-Za-z]{1,3}\s*\d{4}|\b\d{4}\b)/i);
+        if (!digitMatch) return null;
+
+        const last = digitMatch[0].replace(/\D/g, '').slice(-4).padStart(4, '0');
+
+        const amountMatch = trimmed.match(/(?:-|=|:|\s|^)\s*([\d,]{3,7})\b/);
+        let amount = 0;
+        if (amountMatch) {
+            const num = Number(amountMatch[1].replace(/,/g, ''));
+            if (num > 0 && String(num) !== last) amount = num;
+        }
+        if (!amount) {
+            const nums = (trimmed.match(/\b[\d,]{3,7}\b/g) || []).map(n => Number(n.replace(/,/g, '')));
+            const validAmt = nums.find(n => String(n).slice(-4) !== last && n > 0);
+            if (validAmt) amount = validAmt;
+        }
+        if (!amount) return null;
+
+        const personalMatch = trimmed.match(/\*?\s*personal\s+a\w*\s+driver\s+name\s*:\s*([^*]+)\*?/i);
+        const matchV = master.find(v => v.status === 'Active' && v.lastFourDigits === last);
+        const isPA = matchV?.cardNumber?.trim().toUpperCase() === 'P/A' || matchV?.cardNumber?.trim().toUpperCase() === 'PA';
+        const isPersonal = !!personalMatch || isPA || /\bpersonal\b/i.test(trimmed);
+        const isExtra = !isPersonal && /\bextra\b/i.test(trimmed);
+
+        let remarks = trimmed
+            .replace(/^[0-9]+[\).\s-]*/, '')
+            .replace(digitMatch[0], '')
+            .replace(new RegExp(amount.toString(), 'g'), '')
+            .replace(/[-=:,\*]/g, ' ')
+            .replace(/\bpersonal\s+a\w*\s+driver\s+name\s*:\s*[^\s]+/i, '')
+            .replace(/\b(personal|extra|loading)\b/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        return {
+            lastFourDigits: last,
+            totalAmount: amount,
+            remarks,
+            driverNameOverride: personalMatch?.[1].trim() || '',
+            ton: matchV?.ton || '',
+            isPersonal,
+            isExtra,
+            found: !!matchV
+        };
+    }).filter(Boolean) as Parsed[];
+}
+
+function BulkPaste({ date, master, notify }: { date: string; master: Vehicle[]; notify: (x: string) => void }) {
+    const [open, setOpen] = useState(false), [message, setMessage] = useState(''), [incharge, setIncharge] = useState(''), [ton, setTon] = useState(''), [entryType, setEntryType] = useState('LOADING'), [parsed, setParsed] = useState<Parsed[]>([]);
+    const parse = (e?: React.FormEvent) => { if (e) e.preventDefault(); const res = parseMessage(message, master); setParsed(res); if (!res.length) notify('No valid advance lines detected in message. Check format e.g. "4511 - 5000"'); };
+    const save = async () => {
+        if (!incharge) return notify('Please enter Incharge Name before saving.');
+        if (!parsed.length) return notify('Please click Preview Message first.');
+        try {
+            const r = await api('/advances/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, inchargeName: incharge, ton, entryType, entries: parsed, allowUnmatched: true }) });
+            notify(`Added ${r.added} entries successfully!`);
+            setOpen(false); setMessage(''); setParsed([]); window.dispatchEvent(new Event('advancesChanged'));
+        } catch (e: any) { notify(e.message) }
+    };
+    return <>{open && <div className="modalback"><div className="modal"><div className="tableHead"><h2>Paste Today's Advance Message</h2><button onClick={() => setOpen(false)}>Close</button></div><p>Paste message below and click <b>Preview Message</b>. Supports formats like <i>4511 - 5000</i> or <i>TN38AB4511 5000</i>.</p><textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Paste your WhatsApp advance message here..." /><div className="bulkfields"><label>Set Type<select value={entryType} onChange={e => setEntryType(e.target.value)}><option value="LOADING">Loading</option><option value="EXTRA">Extra</option></select></label><label>Incharge Name<input value={incharge} onChange={e => setIncharge(e.target.value)} placeholder="e.g. SILAMBU or DEEPAK" required /></label><label>Default TON (Fallback)<input value={ton} onChange={e => setTon(e.target.value)} placeholder="e.g. 30/35" /></label><button type="button" onClick={parse}>Preview Message</button></div>{parsed.length > 0 && <><div className="preview"><b>{parsed.length} entries detected</b><span>{parsed.filter(x => !x.found).length} will be added as PENDING</span></div><div className="tablewrap"><table><thead><tr><th>LAST 4</th><th>TON (AUTO)</th><th>AMOUNT</th><th>REMARKS</th><th>PERSONAL DRIVER</th><th>SET</th><th>STATUS</th></tr></thead><tbody>{parsed.map((x, i) => <tr key={i}><td>{x.lastFourDigits}</td><td><input style={{ width: 80 }} value={x.ton} onChange={e => { const updated = [...parsed]; updated[i].ton = e.target.value; setParsed(updated) }} placeholder={ton || 'TON'} /></td><td>{money(x.totalAmount)}</td><td>{x.remarks}</td><td>{x.driverNameOverride || '-'}</td><td>{x.isPersonal ? 'PERSONAL' : (x.isExtra ? 'EXTRA' : entryType)}</td><td>{x.found ? 'Ready' : 'Pending - update in Excel'}</td></tr>)}</tbody></table></div><div className="actions"><button className="primary" onClick={save}>Add All {parsed.length} Entries</button></div></>}</div></div>}<div className="pasteactions"><a className="button" href={'/api/export/advances?date=' + date + '&sets=three'}>Export 3 Sets Excel</a><button className="pastebutton" onClick={() => setOpen(true)}>Paste Advance Message</button></div></>
+}
 
 
 createRoot(document.getElementById('root')!).render(<App />);
