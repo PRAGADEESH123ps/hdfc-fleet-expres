@@ -12,6 +12,9 @@ try { db.exec("ALTER TABLE daily_advances ADD COLUMN entryType TEXT DEFAULT 'LOA
 try { db.exec("ALTER TABLE vehicles ADD COLUMN ton TEXT DEFAULT ''") } catch { }
 try { db.exec("ALTER TABLE vehicles ADD COLUMN inchargeName TEXT DEFAULT ''") } catch { }
 
+if (!(db.prepare("SELECT count(*) c FROM users WHERE lower(username)='admin'").get() as any).c) {
+    db.prepare('INSERT INTO users(username,password,name,role) VALUES(?,?,?,?)').run('admin', 'admin123', 'System Administrator', 'admin');
+}
 if (!(db.prepare("SELECT count(*) c FROM users WHERE lower(username)='deepak'").get() as any).c) {
     db.prepare('INSERT INTO users(username,password,name,role) VALUES(?,?,?,?)').run('deepak', 'DEEPAK12', 'Deepak (Operator)', 'user');
 }
