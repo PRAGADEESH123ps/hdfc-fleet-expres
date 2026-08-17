@@ -1,6 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react'; import { createRoot } from 'react-dom/client'; import './styles.css';
 type Vehicle = { id: number; vehicleNumber: string; lastFourDigits: string; cardNumber: string; driverName: string; driverNumber: string; inchargeName?: string; ton?: string; status: string; remarks: string }; type Advance = { id: number; date: string; vehicleId: number; inchargeName: string; ton: string; totalAmount: number; remarks: string; driverNameOverride?: string } & Vehicle;
-const today = () => new Date().toISOString().slice(0, 10), money = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n); const api = async (path: string, opt?: RequestInit) => { const r = await fetch('/api' + path, opt); if (!r.ok) throw await r.json().catch(() => ({ message: 'Request failed' })); return r.status === 204 ? null : r.json() };
+const today = () => new Date().toISOString().slice(0, 10), money = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n); const api = async (path: string, opt?: RequestInit) => {
+    const r = await fetch('/api' + path, opt);
+    if (!r.ok) {
+        const txt = await r.text().catch(() => '');
+        try { throw JSON.parse(txt) } catch (e: any) { throw { message: e.message || txt || 'Request failed' } }
+    }
+    if (r.status === 204) return null;
+    const txt = await r.text().catch(() => '');
+    try { return txt ? JSON.parse(txt) : null } catch { return { success: true } }
+};
 const formatIST = (str: string) => {
     if (!str) return '—';
     const d = new Date(str.includes('Z') || str.includes('+') ? str : str.replace(' ', 'T') + 'Z');
