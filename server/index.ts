@@ -26,8 +26,26 @@ if (!(db.prepare("SELECT count(*) c FROM users WHERE lower(username)='user'").ge
 }
 
 
-const seed = [['TN38AB4511', '4511', '123456', 'Ajit', '9876543210', '30/35', 'SIVA'], ['TN38AB0947', '0947', '234567', 'Kumar', '9876543211', '20/24', 'DEEPAK'], ['TN38AB0022', '0022', '345678', 'Ravi', '9876543212', '32/35', 'SILAMBU'], ['TN38AB0531', '0531', '456789', 'Suresh', '9876543213', '28', 'SILAMPU'], ['TN38AB1122', '1122', '567890', 'Mani', '9876543214', '30/35', 'SHIVA']]; if (!(db.prepare('SELECT count(*) c FROM vehicles').get() as any).c) seed.forEach(x => db.prepare('INSERT INTO vehicles(vehicleNumber,lastFourDigits,cardNumber,driverName,driverNumber,ton,inchargeName,remarks) VALUES(?,?,?,?,?,?,?,?)').run(...x, 'Sample data'));
 const rows = (sql: string, ...v: any[]) => db.prepare(sql).all(...v), one = (sql: string, ...v: any[]) => db.prepare(sql).get(...v);
+
+const seed = [
+    ['TN38AB4511', '4511', '123456', 'Ajit', '9876543210', '30/35', 'SIVA', 'Master vehicle'],
+    ['TN38AB0947', '0947', '234567', 'Kumar', '9876543211', '20/24', 'DEEPAK', 'Master vehicle'],
+    ['TN38AB0022', '0022', '345678', 'Ravi', '9876543212', '32/35', 'SILAMBU', 'Master vehicle'],
+    ['TN38AB0531', '0531', '456789', 'Suresh', '9876543213', '28', 'SILAMPU', 'Master vehicle'],
+    ['TN38AB1122', '1122', '567890', 'Mani', '9876543214', '30/35', 'SHIVA', 'Master vehicle'],
+    ['AP39VB6336', '6336', 'P/A', 'MOHAMED MUSTAFA', '9876543215', '30/35', 'SILAMBU', 'Master vehicle'],
+    ['AP39VB4411', '4411', 'P/A', 'SURESH', '9876543216', '30/35', 'SILAMBU', 'Master vehicle'],
+    ['AP39VB5490', '5490', 'P/A', 'KRISHNAKUMAR', '9876543217', '30/35', 'SILAMBU', 'Master vehicle'],
+    ['TN38AB1234', '1234', '654321', 'RAMESH', '9876543218', '30/35', 'SILAMBU', 'Master vehicle'],
+    ['TN38AB5678', '5678', '765432', 'MURUGAN', '9876543219', '25/30', 'DEEPAK', 'Master vehicle']
+];
+for (const x of seed) {
+    const existing = one('SELECT id FROM vehicles WHERE lastFourDigits=?', x[1]);
+    if (!existing) {
+        db.prepare('INSERT INTO vehicles(vehicleNumber,lastFourDigits,cardNumber,driverName,driverNumber,ton,inchargeName,remarks) VALUES(?,?,?,?,?,?,?,?)').run(...x);
+    }
+}
 
 app.post('/api/login', (q, r) => {
     const username = String(q.body.username || '').trim().toLowerCase();

@@ -1,16 +1,12 @@
-import createWorker from 'tesseract.js';
-import fs from 'node:fs';
-
-const imgPath = 'c:\\Users\\Pragadeesh S\\Desktop\\advance\\master_large.png';
+import { createWorker } from 'tesseract.js';
+import fs from 'fs';
 
 async function main() {
-    console.log('Starting OCR on upscaled image...');
-    const worker = await createWorker.createWorker('eng');
-    const ret = await worker.recognize(imgPath);
-    console.log('OCR Complete. Text length:', ret.data.text.length);
-    fs.writeFileSync('extracted_master_text.txt', ret.data.text, 'utf8');
+    const worker = await createWorker('eng');
+    const ret = await worker.recognize('C:/Users/Pragadeesh S/.gemini/antigravity/brain/aa9f55f3-5bb6-4479-b345-8b5b3332cfbe/media__1786969866919.png');
+    fs.writeFileSync('/tmp/ocr_out.txt', ret.data.text);
+    console.log('OCR Complete! Lines:', ret.data.text.split('\n').length);
     await worker.terminate();
-    console.log('Saved to extracted_master_text.txt');
 }
 
-main().catch(err => console.error(err));
+main();

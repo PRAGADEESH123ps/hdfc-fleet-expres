@@ -1,26 +1,16 @@
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance
 import os
 
-img_path = r'C:\Users\Pragadeesh S\.gemini\antigravity\brain\aa9f55f3-5bb6-4479-b345-8b5b3332cfbe\media__1786954853767.png'
-img = Image.open(img_path).convert('L')
+img = Image.open(r'C:\Users\Pragadeesh S\.gemini\antigravity\brain\aa9f55f3-5bb6-4479-b345-8b5b3332cfbe\media__1786969866919.png')
 w, h = img.size
 
-# Enhancing image
-enhancer = ImageEnhance.Contrast(img)
-img = enhancer.enhance(2.5)
+# Slice into 4 vertical sections
+slice_h = h // 4
+for i in range(4):
+    box = (0, i * slice_h, w, (i + 1) * slice_h)
+    cropped = img.crop(box)
+    resized = cropped.resize((w * 3, slice_h * 3), Image.Resampling.LANCZOS)
+    enh = ImageEnhance.Contrast(resized).enhance(2.0)
+    enh.save(f'C:\\tmp\\slice_{i}.png')
 
-cols = [
-    ('vehicle_no', 0, 60),
-    ('card_no', 60, 95),
-    ('driver_name', 95, 175),
-    ('driver_no', 175, 215),
-    ('incharge', 215, 260),
-    ('ton', 260, 299)
-]
-
-for name, x1, x2 in cols:
-    crop = img.crop((x1, 0, x2, h))
-    crop_large = crop.resize(((x2 - x1) * 4, h * 4), Image.Resampling.LANCZOS)
-    crop_large.save(f'c:\\Users\\Pragadeesh S\\Desktop\\advance\\col_{name}.png')
-
-print("Created enlarged column images.")
+print("Cropped 4 enlarged slices to C:\\tmp\\slice_0.png .. slice_3.png")
