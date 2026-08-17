@@ -23,9 +23,19 @@ const db = createClient({
 
 const norm = (x: any) => String(x ?? '').trim();
 
+const getCutoffDateIST = (daysBack = 15) => {
+    const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    d.setDate(d.getDate() - daysBack);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+};
+
 async function cleanupOldData() {
     try {
-        await db.execute("DELETE FROM daily_advances WHERE date < date('now', '-15 days');");
+        const cutoff = getCutoffDateIST(15);
+        await db.execute({ sql: "DELETE FROM daily_advances WHERE date < ?", args: [cutoff] });
         await db.execute("DELETE FROM user_logs WHERE createdAt < datetime('now', '-15 days');");
     } catch (e) {
         console.error('Data cleanup error:', e);
