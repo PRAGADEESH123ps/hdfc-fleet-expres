@@ -186,7 +186,7 @@ app.post('/api/advances/bulk', async (q, r) => {
             v = await one('SELECT * FROM vehicles WHERE id=?', Number(res.lastInsertRowid));
         }
         if (!v || isNaN(Number(x.totalAmount))) { invalid++; continue }
-        if (!b.allowDuplicate && await one('SELECT id FROM daily_advances WHERE date=? AND vehicleId=?', date, v.id)) { duplicates++; continue }
+        if (b.allowDuplicate === false && await one('SELECT id FROM daily_advances WHERE date=? AND vehicleId=?', date, Number(v.id))) { duplicates++; continue }
         const isPersonal = !!x.driverNameOverride || norm(v.cardNumber).toUpperCase() === 'P/A' || norm(v.cardNumber).toUpperCase() === 'PA';
         const isExtra = !isPersonal && (/\bextra\b/i.test(norm(x.remarks)) || group === 'EXTRA');
         const entryType = isPersonal ? 'PERSONAL' : (isExtra ? 'EXTRA' : group);

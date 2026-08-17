@@ -428,8 +428,8 @@ function BulkPaste({ date, master, notify }: { date: string; master: Vehicle[]; 
         if (!incharge) return notify('Please enter Incharge Name before saving.');
         if (!parsed.length) return notify('Please click Preview Message first.');
         try {
-            const r = await api('/advances/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, inchargeName: incharge, ton, entryType, entries: parsed, allowUnmatched: true }) });
-            notify(`Added ${r.added} entries successfully!`);
+            const r = await api('/advances/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, inchargeName: incharge, ton, entryType, entries: parsed, allowUnmatched: true, allowDuplicate: true }) });
+            notify(`Added ${r.added} entries successfully! ${r.duplicates ? `(${r.duplicates} duplicates skipped)` : ''}`);
             setOpen(false); setMessage(''); setParsed([]); window.dispatchEvent(new Event('advancesChanged'));
         } catch (e: any) { notify(e.message) }
     };
