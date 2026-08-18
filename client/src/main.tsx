@@ -287,7 +287,6 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
     const [items, setItems] = useState<Advance[]>([]), [last, setLast] = useState(''), [v, setV] = useState<Vehicle | null>(null);
     const [form, setForm] = useState<any>({ vehicleNumberOverride: '', cardNumberOverride: '', driverNameOverride: '', driverNumberOverride: '', inchargeName: '', ton: '', totalAmount: '', remarks: '', entryType: 'LOADING', allowDuplicate: false });
     const [edit, setEdit] = useState<Advance | null>(null), input = useRef<HTMLInputElement>(null);
-    const [listening, setListening] = useState(false), [voiceText, setVoiceText] = useState('');
     const load = () => api('/advances?date=' + date).then(setItems);
     useEffect(() => { load(); setLast(''); setV(null); setEdit(null) }, [date]);
 
@@ -328,58 +327,6 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
         } else {
             setV(null);
         }
-    };
-
-    const startVoiceEntry = () => {
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (!SpeechRecognition) return notify('Voice input is not supported in this browser. Please use Google Chrome.');
-
-        const rec = new SpeechRecognition();
-        rec.lang = 'ta-IN'; // Default Tamil speech, falls back to digits
-        rec.interimResults = false;
-        rec.maxAlternatives = 1;
-
-        setListening(true);
-        setVoiceText('Listening... Speak now (e.g. "4511 iynthayiram")');
-        notify('🎙️ Listening... Speak vehicle digits and amount!');
-
-        rec.onresult = (e: any) => {
-            const transcript = e.results[0][0].transcript;
-            setVoiceText(`Heard: "${transcript}"`);
-
-            // Parse numbers from spoken speech
-            const clean = transcript.replace(/[,\.]/g, '');
-            const digitsMatch = clean.match(/\b\d{4}\b/);
-            const numbers = clean.match(/\d+/g) || [];
-
-            let foundDigits = digitsMatch ? digitsMatch[0] : (numbers.find((n: string) => n.length === 4) || '');
-            let foundAmt = numbers.find((n: string) => n.length !== 4 && Number(n) >= 100) || '';
-
-            // Tamil word numbers basic mapping if spoken as words
-            if (!foundAmt) {
-                if (/ஐந்தாயிரம்|5000|5000/i.test(transcript)) foundAmt = '5000';
-                else if (/பத்தாயிரம்|10000/i.test(transcript)) foundAmt = '10000';
-                else if (/மூன்றாயிரம்|3000/i.test(transcript)) foundAmt = '3000';
-                else if (/இரண்டாயிரம்|2000/i.test(transcript)) foundAmt = '2000';
-                else if (/ஆயிரம்|1000/i.test(transcript)) foundAmt = '1000';
-            }
-
-            if (foundDigits) {
-                lookup(foundDigits);
-                if (foundAmt) setForm((f: any) => ({ ...f, totalAmount: foundAmt }));
-                notify(`✅ Voice Auto-filled: Vehicle ${foundDigits}${foundAmt ? `, Amount ₹` + foundAmt : ''}`);
-            } else {
-                notify(`Heard: "${transcript}". Please say 4-digit vehicle number clearly.`);
-            }
-        };
-
-        rec.onerror = (err: any) => {
-            setListening(false);
-            notify('Voice error: ' + (err.error || 'Could not understand speech'));
-        };
-
-        rec.onend = () => setListening(false);
-        rec.start();
     };
 
     const handleRemarksChange = (rem: string) => {
@@ -452,13 +399,7 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
         </div>
 
         <form className="card entry" onSubmit={add}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2>{edit ? 'Edit Advance Entry' : 'Fast Advance Entry'}</h2>
-                <button type="button" onClick={startVoiceEntry} style={{ background: listening ? '#ef4444' : '#0284c7', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    {listening ? '🔴 Listening...' : '🎙️ Voice Entry'}
-                </button>
-            </div>
-            {voiceText && <p style={{ fontSize: '13px', color: '#0284c7', fontWeight: 600, marginTop: -4 }}>{voiceText}</p>}
+            <h2>{edit ? 'Edit Advance Entry' : 'Fast Advance Entry'}</h2>
             <label>Vehicle Last 4 Digits
                 <input ref={input} autoFocus maxLength={4} value={last} onChange={e => lookup(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 4511" required />
             </label>
