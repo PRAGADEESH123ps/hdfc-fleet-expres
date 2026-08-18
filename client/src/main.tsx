@@ -123,9 +123,12 @@ function UserControl({ notify }: { notify: (s: string) => void }) {
 
 function Settings({ logo, setLogo, notify }: { logo: string; setLogo: (l: string) => void; notify: (s: string) => void }) {
     const [contacts, setContacts] = useState<{ name: string; number: string }[]>([]);
+    const [pdfUsers, setPdfUsers] = useState<string[]>(['deepak']);
+    const [newPdfUser, setNewPdfUser] = useState('');
 
     useEffect(() => {
         api('/settings/whatsapp').then(r => setContacts(r?.contacts || [])).catch(() => { });
+        api('/settings/pdf-access').then(r => setPdfUsers(r?.users || ['deepak'])).catch(() => { });
     }, []);
 
     const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -173,6 +176,31 @@ function Settings({ logo, setLogo, notify }: { logo: string; setLogo: (l: string
         setContacts(copy);
     };
 
+    const savePdfUsers = async (usersList: string[]) => {
+        try {
+            await api('/settings/pdf-access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ users: usersList }) });
+            setPdfUsers(usersList);
+            notify('PDF access settings saved');
+        } catch {
+            notify('Failed to save PDF access settings');
+        }
+    };
+
+    const addPdfUser = (e: React.FormEvent) => {
+        e.preventDefault();
+        const u = newPdfUser.trim().toLowerCase();
+        if (!u) return;
+        if (pdfUsers.includes(u)) return notify('User ID already added');
+        const updated = [...pdfUsers, u];
+        savePdfUsers(updated);
+        setNewPdfUser('');
+    };
+
+    const removePdfUser = (u: string) => {
+        const updated = pdfUsers.filter(x => x !== u);
+        savePdfUsers(updated);
+    };
+
     return <section>
         <h1>Settings</h1>
         <div className="card">
@@ -189,6 +217,27 @@ function Settings({ logo, setLogo, notify }: { logo: string; setLogo: (l: string
                 </label>
             </div>
         </div>
+
+        <div className="card">
+            <h2>📄 Save PDF Report Access Control</h2>
+            <p>Admin users always have PDF access. Add additional non-admin Operator IDs (e.g. <b>deepak</b>) below to allow them to see and download PDF reports in Advance History:</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', margin: '14px 0' }}>
+                <span style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', padding: '6px 12px', borderRadius: 20, fontWeight: 700, fontSize: '13px' }}>
+                    👑 All Admins (Default Access)
+                </span>
+                {pdfUsers.map(u => (
+                    <span key={u} style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', padding: '6px 12px', borderRadius: 20, fontWeight: 700, fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        👤 {u} <button type="button" onClick={() => removePdfUser(u)} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontWeight: 800, padding: 0, marginLeft: 4 }}>✕</button>
+                    </span>
+                ))}
+            </div>
+
+            <form onSubmit={addPdfUser} style={{ display: 'flex', gap: '12px', maxWidth: 400 }}>
+                <input style={{ flex: 1, padding: 10, borderRadius: 6, border: '1px solid #cbd5e1' }} value={newPdfUser} onChange={e => setNewPdfUser(e.target.value)} placeholder="User ID (e.g. deepak)" />
+                <button type="submit" className="button primary">+ Allow User ID</button>
+            </form>
+        </div>
+
         <form className="card" onSubmit={saveContacts}>
             <h2>📲 Quick WhatsApp Share Contacts (Up to 5)</h2>
             <p>Add up to 5 target WhatsApp contacts (e.g. Owner, Manager, Accounts). When clicking <b>Share WhatsApp</b>, you can choose which contact to send to in 1-click!</p>

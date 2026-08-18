@@ -86,6 +86,21 @@ app.post('/api/settings/whatsapp', async (q, r) => {
     r.json({ success: true, contacts: safeContacts });
 });
 
+app.get('/api/settings/pdf-access', async (q, r) => {
+    const item = await one("SELECT value FROM settings WHERE key='pdf_access_users'");
+    let users: string[] = ['deepak'];
+    if (item && item.value) {
+        try { users = JSON.parse(item.value); } catch { }
+    }
+    r.json({ users });
+});
+app.post('/api/settings/pdf-access', async (q, r) => {
+    const { users } = q.body;
+    const safeUsers = Array.isArray(users) ? users.map((u: string) => norm(u).toLowerCase()).filter(Boolean) : [];
+    await db.execute({ sql: "INSERT INTO settings(key, value) VALUES('pdf_access_users', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", args: [JSON.stringify(safeUsers)] });
+    r.json({ success: true, users: safeUsers });
+});
+
 app.post('/api/login', async (q, r) => {
     const username = String(q.body.username || '').trim().toLowerCase();
     const password = String(q.body.password || '').trim();
