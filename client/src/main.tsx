@@ -283,7 +283,7 @@ function App() {
 
 
 function Dashboard({ date, setDate }: { date: string, setDate: (d: string) => void }) { const [d, setD] = useState<any>(); useEffect(() => { api('/dashboard?date=' + date).then(setD) }, [date]); return <section><div className="top"><div><h1>Dashboard</h1><p>Daily fleet advance overview</p></div><input type="date" value={date} onChange={e => setDate(e.target.value)} /></div><div className="stats"><Stat t="Today's Vehicles" v={d?.vehicles ?? '—'} /><Stat t="Total TON" v={d?.ton ?? '—'} /><Stat t="Total Advance" v={d ? money(d.amount) : '—'} /><Stat t="Active Vehicles" v={d?.activeVehicles ?? '—'} /></div><div className="card"><h2>Recent Entries</h2><Table items={d?.recent || []} compact /></div></section> }; const Stat = ({ t, v }: { t: string, v: any }) => <div className="stat"><span>{t}</span><b>{v}</b></div>;
-function Daily({ date, setDate, master, refresh, notify }: { date: string; setDate: (d: string) => void; master: Vehicle[]; refresh: () => void; notify: (x: string) => void }) {
+function Daily({ date, setDate, master, refresh, notify, logo }: { date: string; setDate: (d: string) => void; master: Vehicle[]; refresh: () => void; notify: (x: string) => void; logo?: string }) {
     const [items, setItems] = useState<Advance[]>([]), [last, setLast] = useState(''), [v, setV] = useState<Vehicle | null>(null);
     const [form, setForm] = useState<any>({ vehicleNumberOverride: '', cardNumberOverride: '', driverNameOverride: '', driverNumberOverride: '', inchargeName: '', ton: '', totalAmount: '', remarks: '', entryType: 'LOADING', allowDuplicate: false });
     const [edit, setEdit] = useState<Advance | null>(null), input = useRef<HTMLInputElement>(null);
