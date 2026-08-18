@@ -519,18 +519,13 @@ function openWa(rawPhone: string, items: Advance[], dateStr: string) {
 function PdfReportButton({ items, date, logo }: { items: Advance[]; date: string; logo: string }) {
     const [open, setOpen] = useState(false);
 
-    const triggerPdf = () => {
-        if (!items.length) return alert('No advance entries available to generate PDF.');
-        setOpen(true);
-    };
-
     const dText = date ? date.split('-').reverse().join('.') : new Date().toLocaleDateString('en-GB').replace(/\//g, '.');
-    const grandTotal = items.reduce((a, b) => a + Number(b.totalAmount || 0), 0);
+    const grandTotal = (items || []).reduce((a, b) => a + Number(b.totalAmount || 0), 0);
     const groups = ['LOADING', 'PERSONAL', 'EXTRA'];
 
     return <>
-        <button type="button" style={{ background: '#0284c7', color: '#fff', border: 'none', fontWeight: 600 }} className="button" onClick={triggerPdf}>📄 Download PDF Report</button>
-        {open && <div className="modalback">
+        <button type="button" style={{ background: '#0284c7', color: '#fff', border: 'none', fontWeight: 600 }} className="button" onClick={() => setOpen(true)}>📄 Download PDF Report</button>
+        {open && <div className="modalback" style={{ zIndex: 99999 }}>
             <div className="modal" style={{ maxWidth: 850, maxHeight: '90vh', overflowY: 'auto', background: '#fff', padding: 24, borderRadius: 12 }}>
                 <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #e2e8f0', paddingBottom: 12 }}>
                     <h2 style={{ margin: 0, color: '#0f172a' }}>📄 Daily PDF Report Preview</h2>
@@ -553,50 +548,57 @@ function PdfReportButton({ items, date, logo }: { items: Advance[]; date: string
                         </div>
                     </div>
 
-                    {groups.map(g => {
-                        const list = items.filter((x: any) => ((x as any).entryType || 'LOADING') === g);
-                        if (!list.length) return null;
-                        const sub = list.reduce((a, b) => a + Number(b.totalAmount || 0), 0);
-                        return <div key={g} style={{ marginTop: 20 }}>
-                            <h3 style={{ background: '#0284c7', color: '#fff', padding: '8px 12px', margin: 0, borderRadius: '4px 4px 0 0', fontSize: 14, fontWeight: 700 }}>
-                                {g} ADVANCE STATEMENT
-                            </h3>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 6 }}>
-                                <thead>
-                                    <tr style={{ background: '#f1f5f9', textAlign: 'left' }}>
-                                        <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px', width: 40 }}>S.NO</th>
-                                        <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>VEHICLE NO</th>
-                                        <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>CARD NO</th>
-                                        <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>DRIVER NAME</th>
-                                        <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>INCHARGE</th>
-                                        <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>TON</th>
-                                        <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right' }}>AMOUNT (₹)</th>
-                                        <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>REMARKS</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {list.map((x, i) => <tr key={x.id}>
-                                        <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', textAlign: 'center' }}>{i + 1}</td>
-                                        <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', fontWeight: 600 }}>{x.vehicleNumber}</td>
-                                        <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px' }}>{x.cardNumber}</td>
-                                        <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px' }}>{x.driverName}</td>
-                                        <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px' }}>{x.inchargeName || '-'}</td>
-                                        <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px' }}>{x.ton || '-'}</td>
-                                        <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>₹{Number(x.totalAmount).toLocaleString('en-IN')}</td>
-                                        <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', color: '#64748b' }}>{x.remarks || '-'}</td>
-                                    </tr>)}
-                                    <tr style={{ background: '#e0f2fe', fontWeight: 700 }}>
-                                        <td colSpan={6} style={{ border: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right' }}>{g} SUBTOTAL:</td>
-                                        <td style={{ border: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right' }}>₹{sub.toLocaleString('en-IN')}</td>
-                                        <td style={{ border: '1px solid #cbd5e1', padding: '6px 8px', fontSize: 11, color: '#0369a1' }}>({list.length} Vehicles)</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>;
-                    })}
+                    {(!items || items.length === 0) ? (
+                        <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b' }}>
+                            <h3>No advance entries recorded for {dText}.</h3>
+                            <p>Add advance entries above to see them in this statement.</p>
+                        </div>
+                    ) : (
+                        groups.map(g => {
+                            const list = items.filter((x: any) => ((x as any).entryType || 'LOADING') === g);
+                            if (!list.length) return null;
+                            const sub = list.reduce((a, b) => a + Number(b.totalAmount || 0), 0);
+                            return <div key={g} style={{ marginTop: 20 }}>
+                                <h3 style={{ background: '#0284c7', color: '#fff', padding: '8px 12px', margin: 0, borderRadius: '4px 4px 0 0', fontSize: 14, fontWeight: 700 }}>
+                                    {g} ADVANCE STATEMENT
+                                </h3>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 6 }}>
+                                    <thead>
+                                        <tr style={{ background: '#f1f5f9', textAlign: 'left' }}>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px', width: 40 }}>S.NO</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>VEHICLE NO</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>CARD NO</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>DRIVER NAME</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>INCHARGE</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>TON</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right' }}>AMOUNT (₹)</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>REMARKS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {list.map((x, i) => <tr key={x.id}>
+                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', textAlign: 'center' }}>{i + 1}</td>
+                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', fontWeight: 600 }}>{x.vehicleNumber}</td>
+                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px' }}>{x.cardNumber}</td>
+                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px' }}>{x.driverName}</td>
+                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px' }}>{x.inchargeName || '-'}</td>
+                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px' }}>{x.ton || '-'}</td>
+                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>₹{Number(x.totalAmount).toLocaleString('en-IN')}</td>
+                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', color: '#64748b' }}>{x.remarks || '-'}</td>
+                                        </tr>)}
+                                        <tr style={{ background: '#e0f2fe', fontWeight: 700 }}>
+                                            <td colSpan={6} style={{ border: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right' }}>{g} SUBTOTAL:</td>
+                                            <td style={{ border: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right' }}>₹{sub.toLocaleString('en-IN')}</td>
+                                            <td style={{ border: '1px solid #cbd5e1', padding: '6px 8px', fontSize: 11, color: '#0369a1' }}>({list.length} Vehicles)</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>;
+                        })
+                    )}
 
                     <div style={{ marginTop: 24, padding: 12, background: '#0f172a', color: '#fff', borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 15, fontWeight: 700 }}>TOTAL FLEET VEHICLES: {items.length}</span>
+                        <span style={{ fontSize: 15, fontWeight: 700 }}>TOTAL FLEET VEHICLES: {items?.length || 0}</span>
                         <span style={{ fontSize: 18, fontWeight: 800, color: '#38bdf8' }}>GRAND TOTAL: ₹{grandTotal.toLocaleString('en-IN')}</span>
                     </div>
 
