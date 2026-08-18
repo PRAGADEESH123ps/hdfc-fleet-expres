@@ -436,7 +436,6 @@ function Daily({ date, setDate, master, refresh, notify, logo }: { date: string;
             <div className="tableHead">
                 <h2>Daily Entries</h2>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                    <PdfReportButton items={items} date={date} logo={logo || ''} />
                     <WhatsAppShareButton items={items} date={date} />
                     <a className="primary button" href={'/api/export/advances?date=' + date + '&sets=three'}>Export 3 Sets Excel</a>
                 </div>
@@ -516,102 +515,6 @@ function openWa(rawPhone: string, items: Advance[], dateStr: string) {
     }
 }
 
-function PdfReportButton({ items, date, logo }: { items: Advance[]; date: string; logo: string }) {
-    const [open, setOpen] = useState(false);
-
-    const dText = date ? date.split('-').reverse().join('.') : new Date().toLocaleDateString('en-GB').replace(/\//g, '.');
-    const grandTotal = (items || []).reduce((a, b) => a + Number(b.totalAmount || 0), 0);
-    const groups = ['LOADING', 'PERSONAL', 'EXTRA'];
-
-    return <>
-        <button type="button" style={{ background: '#0284c7', color: '#fff', border: 'none', fontWeight: 600 }} className="button" onClick={() => setOpen(true)}>📄 Download PDF Report</button>
-        {open && <div className="modalback" style={{ zIndex: 99999 }}>
-            <div className="modal" style={{ maxWidth: 850, maxHeight: '90vh', overflowY: 'auto', background: '#fff', padding: 24, borderRadius: 12 }}>
-                <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #e2e8f0', paddingBottom: 12 }}>
-                    <h2 style={{ margin: 0, color: '#0f172a' }}>📄 Daily PDF Report Preview</h2>
-                    <div style={{ display: 'flex', gap: 10 }}>
-                        <button type="button" className="button primary" style={{ background: '#0284c7', padding: '10px 20px', fontWeight: 700 }} onClick={() => window.print()}>🖨️ Save as PDF / Print</button>
-                        <button type="button" className="button danger" onClick={() => setOpen(false)}>Close</button>
-                    </div>
-                </div>
-
-                <div id="pdf-report-content">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #0284c7', paddingBottom: 12 }}>
-                        <div>
-                            {logo ? <img src={logo} alt="Logo" style={{ maxHeight: 55, display: 'block', marginBottom: 6 }} /> : null}
-                            <h1 style={{ margin: 0, fontSize: 22, color: '#0284c7', fontWeight: 800 }}>DRIVER ADVANCE STATEMENT</h1>
-                            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b', fontWeight: 600 }}>Daily Advance Record & Fleet Summary</p>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>DATE: {dText}</div>
-                            <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Generated: {new Date().toLocaleTimeString()}</div>
-                        </div>
-                    </div>
-
-                    {(!items || items.length === 0) ? (
-                        <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b' }}>
-                            <h3>No advance entries recorded for {dText}.</h3>
-                            <p>Add advance entries above to see them in this statement.</p>
-                        </div>
-                    ) : (
-                        groups.map(g => {
-                            const list = items.filter((x: any) => ((x as any).entryType || 'LOADING') === g);
-                            if (!list.length) return null;
-                            const sub = list.reduce((a, b) => a + Number(b.totalAmount || 0), 0);
-                            return <div key={g} style={{ marginTop: 20 }}>
-                                <h3 style={{ background: '#0284c7', color: '#fff', padding: '8px 12px', margin: 0, borderRadius: '4px 4px 0 0', fontSize: 14, fontWeight: 700 }}>
-                                    {g} ADVANCE STATEMENT
-                                </h3>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 6 }}>
-                                    <thead>
-                                        <tr style={{ background: '#f1f5f9', textAlign: 'left' }}>
-                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px', width: 40 }}>S.NO</th>
-                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>VEHICLE NO</th>
-                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>CARD NO</th>
-                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>DRIVER NAME</th>
-                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>INCHARGE</th>
-                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>TON</th>
-                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right' }}>AMOUNT (₹)</th>
-                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 8px' }}>REMARKS</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {list.map((x, i) => <tr key={x.id}>
-                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', textAlign: 'center' }}>{i + 1}</td>
-                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', fontWeight: 600 }}>{x.vehicleNumber}</td>
-                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px' }}>{x.cardNumber}</td>
-                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px' }}>{x.driverName}</td>
-                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px' }}>{x.inchargeName || '-'}</td>
-                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px' }}>{x.ton || '-'}</td>
-                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>₹{Number(x.totalAmount).toLocaleString('en-IN')}</td>
-                                            <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', color: '#64748b' }}>{x.remarks || '-'}</td>
-                                        </tr>)}
-                                        <tr style={{ background: '#e0f2fe', fontWeight: 700 }}>
-                                            <td colSpan={6} style={{ border: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right' }}>{g} SUBTOTAL:</td>
-                                            <td style={{ border: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right' }}>₹{sub.toLocaleString('en-IN')}</td>
-                                            <td style={{ border: '1px solid #cbd5e1', padding: '6px 8px', fontSize: 11, color: '#0369a1' }}>({list.length} Vehicles)</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>;
-                        })
-                    )}
-
-                    <div style={{ marginTop: 24, padding: 12, background: '#0f172a', color: '#fff', borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 15, fontWeight: 700 }}>TOTAL FLEET VEHICLES: {items?.length || 0}</span>
-                        <span style={{ fontSize: 18, fontWeight: 800, color: '#38bdf8' }}>GRAND TOTAL: ₹{grandTotal.toLocaleString('en-IN')}</span>
-                    </div>
-
-                    <div style={{ marginTop: 40, display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b' }}>
-                        <div>Prepared By: ___________________</div>
-                        <div>Authorized Signatory: ___________________</div>
-                    </div>
-                </div>
-            </div>
-        </div>}
-    </>;
-}
-
 function Table({ items, onEdit, onDelete, compact }: { items: Advance[]; onEdit?: (x: Advance) => void; onDelete?: (x: Advance) => void; compact?: boolean }) {
     if (!items.length) return <div className="empty">No entries found for this selection.</div>;
     return <div className="tablewrap">
@@ -649,7 +552,7 @@ function Table({ items, onEdit, onDelete, compact }: { items: Advance[]; onEdit?
 }
 
 function Master({ items, refresh, notify }: { items: Vehicle[]; refresh: () => void; notify: (s: string) => void }) { const blank = { vehicleNumber: '', cardNumber: '', driverName: '', driverNumber: '', inchargeName: '', ton: '', status: 'Active', remarks: '' }; const [f, setF] = useState<any>(blank), [edit, setEdit] = useState<Vehicle | null>(null), [q, setQ] = useState(''); const save = async (e: React.FormEvent) => { e.preventDefault(); try { await api('/vehicles' + (edit ? '/' + edit.id : ''), { method: edit ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) }); notify(edit ? 'Vehicle updated' : 'Vehicle added'); setF(blank); setEdit(null); refresh() } catch (x: any) { notify(x.message) } }; const filtered = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); const imp = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files?.[0]) return; const fd = new FormData(); fd.append('file', e.target.files[0]); try { const x = await api('/import/vehicles', { method: 'POST', body: fd }); notify(`Imported ${x.imported}; duplicates ${x.duplicates}; invalid ${x.invalid}`); refresh() } catch (x: any) { notify(x.message) } }; return <section><div className="top"><div><h1>Vehicle Master</h1><p>The last four digits are derived automatically from the vehicle number for lookup.</p></div><div><a className="button" href="/api/export/template/vehicles">Download Import Template</a><a className="button" href="/api/export/vehicles">Export Excel</a><label className="button">Import Vehicle Master<input type="file" accept=".xlsx,.csv" onChange={imp} hidden /></label></div></div><form className="card masterform" onSubmit={save}><h2>{edit ? 'Edit Vehicle' : 'Add Vehicle'}</h2>{[['vehicleNumber', 'Full Vehicle Number'], ['cardNumber', 'Card Number'], ['driverName', 'Driver Name'], ['driverNumber', 'Driver Number'], ['inchargeName', 'Default Incharge Name (e.g. SILAMBU, SIVA)'], ['ton', 'Default TON / Capacity (e.g. 30/35)'], ['remarks', 'Remarks']].map(([k, l]) => <label key={k}>{l}<input value={f[k] || ''} onChange={e => setF({ ...f, [k]: e.target.value })} required={!['remarks', 'ton', 'inchargeName', 'driverNumber'].includes(k)} /></label>)}<label>Status<select value={f.status} onChange={e => setF({ ...f, status: e.target.value })}><option>Active</option><option>Inactive</option></select></label><div className="actions"><button className="primary">{edit ? 'Save Vehicle' : 'Add Vehicle'}</button>{edit && <button type="button" onClick={() => { setEdit(null); setF(blank) }}>Cancel</button>}</div></form><div className="card"><input className="search" placeholder="Search vehicle, driver or card number" value={q} onChange={e => setQ(e.target.value)} /><div className="tablewrap"><table><thead><tr>{['VEHICLE NO', 'CARD NO', 'DRIVER', 'DRIVER NO', 'INCHARGE NAME', 'TON', 'STATUS', 'REMARKS', 'ACTIONS'].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>{filtered.map(x => <tr key={x.id}><td>{x.vehicleNumber}</td><td>{x.cardNumber}</td><td>{x.driverName}</td><td>{x.driverNumber}</td><td>{x.inchargeName || '-'}</td><td>{x.ton || '-'}</td><td><span className={'badge ' + x.status}>{x.status}</span></td><td>{x.remarks}</td><td><button onClick={() => { setEdit(x); setF(x); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Edit</button><button onClick={async () => { if (confirm('Delete this vehicle?')) try { await api('/vehicles/' + x.id, { method: 'DELETE' }); refresh(); notify('Vehicle deleted') } catch (e: any) { notify(e.message) } }} className="danger">Delete</button></td></tr>)}</tbody></table></div></div></section> }
-function History({ notify, logo }: { notify: (s: string) => void; logo?: string }) { const [items, setItems] = useState<Advance[]>([]), [date, setDate] = useState(''), [q, setQ] = useState(''); useEffect(() => { api('/advances' + (date ? '?date=' + date : '')).then(setItems) }, [date]); const shown = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); return <section><div className="top"><div><h1>Advance History</h1><p>Search prior daily advance records. <strong style={{ fontWeight: 700, color: '#0284c7' }}>(Retaining Recent 15-Day Active Advance Records)</strong></p></div><div style={{ display: 'flex', gap: '8px' }}><PdfReportButton items={shown} date={date} logo={logo || ''} /><WhatsAppShareButton items={shown} date={date} /><a className="button" href={'/api/export/advances?date=' + date}>Export Selected Date</a><a className="primary button" href="/api/export/advances?all=true">Export All Records</a></div></div><div className="card filters"><label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label><label>Search<input placeholder="Vehicle, last 4, driver, card, incharge" value={q} onChange={e => setQ(e.target.value)} /></label></div><div className="card"><Table items={shown} /></div></section> }
+function History({ notify }: { notify: (s: string) => void }) { const [items, setItems] = useState<Advance[]>([]), [date, setDate] = useState(''), [q, setQ] = useState(''); useEffect(() => { api('/advances' + (date ? '?date=' + date : '')).then(setItems) }, [date]); const shown = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); return <section><div className="top"><div><h1>Advance History</h1><p>Search prior daily advance records. <strong style={{ fontWeight: 700, color: '#0284c7' }}>(Retaining Recent 15-Day Active Advance Records)</strong></p></div><div><WhatsAppShareButton items={shown} date={date} /><a className="button" href={'/api/export/advances?date=' + date}>Export Selected Date</a><a className="primary button" href="/api/export/advances?all=true">Export All Records</a></div></div><div className="card filters"><label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label><label>Search<input placeholder="Vehicle, last 4, driver, card, incharge" value={q} onChange={e => setQ(e.target.value)} /></label></div><div className="card"><Table items={shown} /></div></section> }
 type Parsed = { lastFourDigits: string; totalAmount: number; remarks: string; driverNameOverride: string; ton: string; isPersonal: boolean; isExtra: boolean; found: boolean };
 function parseMessage(message: string, master: Vehicle[]): Parsed[] {
     return message.split(/\r?\n/).map(line => {
