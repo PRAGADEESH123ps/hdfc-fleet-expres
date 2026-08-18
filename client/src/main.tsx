@@ -290,28 +290,42 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
     const load = () => api('/advances?date=' + date).then(setItems);
     useEffect(() => { load(); setLast(''); setV(null); setEdit(null) }, [date]);
 
-    useEffect(() => {
-        if (last.length === 4) api('/vehicles/lookup/' + last).then(res => {
-            setV(res);
-            const isPA = res.cardNumber?.toUpperCase() === 'P/A' || res.cardNumber?.toUpperCase() === 'PA';
-            setForm((f: any) => ({
-                ...f,
-                vehicleNumberOverride: (res.vehicleNumber && !res.vehicleNumber.startsWith('PENDING')) ? res.vehicleNumber : f.vehicleNumberOverride,
-                cardNumberOverride: (res.cardNumber && res.cardNumber !== 'PENDING') ? res.cardNumber : f.cardNumberOverride,
-                driverNameOverride: (res.driverName && res.driverName !== 'Pending update') ? res.driverName : f.driverNameOverride,
-                driverNumberOverride: (res.driverNumber && res.driverNumber !== 'PENDING') ? res.driverNumber : f.driverNumberOverride,
-                inchargeName: res.inchargeName || f.inchargeName || '',
-                ton: res.ton || f.ton || '',
-                entryType: isPA ? 'PERSONAL' : f.entryType
-            }));
-        }).catch(() => setV(null));
-    }, [last]);
+    const selectVehicle = (x: Vehicle) => {
+        setV(x);
+        setLast(x.lastFourDigits);
+        const isPA = x.cardNumber?.toUpperCase() === 'P/A' || x.cardNumber?.toUpperCase() === 'PA';
+        setForm((f: any) => ({
+            ...f,
+            vehicleNumberOverride: (x.vehicleNumber && !x.vehicleNumber.startsWith('PENDING')) ? x.vehicleNumber : '',
+            cardNumberOverride: (x.cardNumber && x.cardNumber !== 'PENDING') ? x.cardNumber : '',
+            driverNameOverride: (x.driverName && x.driverName !== 'Pending update') ? x.driverName : '',
+            driverNumberOverride: (x.driverNumber && x.driverNumber !== 'PENDING') ? x.driverNumber : '',
+            inchargeName: x.inchargeName || f.inchargeName || '',
+            ton: x.ton || f.ton || '',
+            entryType: isPA ? 'PERSONAL' : f.entryType
+        }));
+    };
 
-    const lookup = (x: string) => {
-        setLast(x);
-        if (x.length < 4) {
+    const lookup = (digits: string) => {
+        setLast(digits);
+        if (!digits) {
             setV(null);
             setForm((f: any) => ({ ...f, vehicleNumberOverride: '', cardNumberOverride: '', driverNameOverride: '', driverNumberOverride: '', inchargeName: '', ton: '' }));
+            return;
+        }
+
+        const matches = master.filter(x => x.status === 'Active' && x.lastFourDigits === digits);
+        if (matches.length === 1) {
+            selectVehicle(matches[0]);
+        } else if (matches.length > 1) {
+            setV(null);
+            setForm((f: any) => ({ ...f, vehicleNumberOverride: '', cardNumberOverride: '', driverNameOverride: '', driverNumberOverride: '', inchargeName: '', ton: '' }));
+        } else if (digits.length === 4) {
+            api('/vehicles/lookup/' + digits).then(res => {
+                if (res) selectVehicle(res);
+            }).catch(() => setV(null));
+        } else {
+            setV(null);
         }
     };
 
@@ -323,7 +337,7 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
 
     const add = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!v) return notify('Vehicle not found — add it to Vehicle Master first.');
+        if (!v) return notify('Vehicle not found — please select a valid vehicle from the list.');
         try {
             const payload = { ...form, ton: form.ton || v.ton, date, vehicleId: v.id };
             if (edit) await api('/advances/' + edit.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -370,7 +384,8 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
 
     const totals = items.reduce((a, x) => ({ amount: a.amount + Number(x.totalAmount) }), { amount: 0 });
     const uniqueTons = Array.from(new Set(items.map(x => x.ton).filter(Boolean))).join(', ');
-    const suggestions = master.filter(x => x.status === 'Active' && (x.lastFourDigits.includes(last) || x.vehicleNumber.includes(last))).slice(0, 5);
+    const suggestions = master.filter(x => x.status === 'Active' && (x.lastFourDigits.includes(last) || x.vehicleNumber.includes(last))).slice(0, 8);
+    const showSuggestions = last && (!v || suggestions.length > 1);
 
     return <section>
         <div className="top">
@@ -388,21 +403,9 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
             <label>Vehicle Last 4 Digits
                 <input ref={input} autoFocus maxLength={4} value={last} onChange={e => lookup(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 4511" required />
             </label>
-            {last && last.length < 4 && <div className="suggestions">
-                {suggestions.map(x => <button type="button" onClick={() => {
-                    setLast(x.lastFourDigits); setV(x);
-                    const isPA = x.cardNumber?.toUpperCase() === 'P/A' || x.cardNumber?.toUpperCase() === 'PA';
-                    setForm((f: any) => ({
-                        ...f,
-                        vehicleNumberOverride: (x.vehicleNumber && !x.vehicleNumber.startsWith('PENDING')) ? x.vehicleNumber : f.vehicleNumberOverride,
-                        cardNumberOverride: (x.cardNumber && x.cardNumber !== 'PENDING') ? x.cardNumber : f.cardNumberOverride,
-                        driverNameOverride: (x.driverName && x.driverName !== 'Pending update') ? x.driverName : f.driverNameOverride,
-                        driverNumberOverride: (x.driverNumber && x.driverNumber !== 'PENDING') ? x.driverNumber : f.driverNumberOverride,
-                        inchargeName: x.inchargeName || f.inchargeName || '',
-                        ton: x.ton || f.ton || '',
-                        entryType: isPA ? 'PERSONAL' : f.entryType
-                    }));
-                }} key={x.id}><b>{x.lastFourDigits}</b> — {x.vehicleNumber} — {x.driverName} {x.ton ? `(${x.ton})` : ''}</button>)}
+            {showSuggestions && <div className="suggestions">
+                {suggestions.length > 1 && <p style={{ margin: '4px 8px', fontSize: '13px', fontWeight: 600, color: '#0284c7' }}>⚠️ Multiple vehicles match "{last}". Please select one:</p>}
+                {suggestions.map(x => <button type="button" onClick={() => selectVehicle(x)} key={x.id}><b>{x.lastFourDigits}</b> — {x.vehicleNumber} — {x.driverName} {x.ton ? `(${x.ton})` : ''}</button>)}
             </div>}
 
             <label>Vehicle No<input value={form.vehicleNumberOverride} onChange={e => setForm({ ...form, vehicleNumberOverride: e.target.value })} placeholder={v?.vehicleNumber || "Vehicle No (Editable)"} /></label>
