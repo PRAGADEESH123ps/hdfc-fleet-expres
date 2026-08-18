@@ -734,30 +734,56 @@ function parseMessage(message: string, master: Vehicle[]): Parsed[] {
         const trimmed = line.trim();
         if (!trimmed) return null;
 
-        const digitMatch = trimmed.match(/^(\d{4})\b/) || trimmed.match(/([A-Za-z]{2}\s*\d{1,2}\s*[A-Za-z]{1,3}\s*\d{4}|\b\d{4}\b)/i);
-        if (!digitMatch) return null;
+        const startFourMatch = trimmed.match(/^(\d{4})\b/);
+        const fullVehMatch = trimmed.match(/([A-Za-z]{2}\s*\d{1,2}\s*[A-Za-z]{1,3}\s*\d{4})/i);
+        const anyFourMatch = trimmed.match(/\b(\d{4})\b/);
 
-        const last = (digitMatch[1] || digitMatch[0]).replace(/\D/g, '').slice(-4).padStart(4, '0');
+        let last = '';
+        let restOfLine = trimmed;
+
+        if (startFourMatch) {
+            last = startFourMatch[1];
+            restOfLine = trimmed.slice(startFourMatch[0].length).trim();
+        } else if (fullVehMatch) {
+            const digitsOnly = fullVehMatch[0].replace(/\D/g, '');
+            last = digitsOnly.slice(-4).padStart(4, '0');
+            restOfLine = trimmed.replace(fullVehMatch[0], '').trim();
+        } else if (anyFourMatch) {
+            last = anyFourMatch[1];
+            restOfLine = trimmed.slice(trimmed.indexOf(anyFourMatch[0]) + anyFourMatch[0].length).trim();
+        } else {
+            return null;
+        }
+
+        restOfLine = restOfLine.replace(/^[\s\-:]+/, '');
 
         let amount = 0;
         let remarks = '';
         let driverNameOverride = '';
 
-        const slashIdx = trimmed.indexOf('/');
+        const slashIdx = restOfLine.indexOf('/');
         if (slashIdx !== -1) {
-            remarks = trimmed.slice(slashIdx + 1).trim();
-            const beforeSlash = trimmed.slice(0, slashIdx);
+            remarks = restOfLine.slice(slashIdx + 1).trim();
+            const beforeSlash = restOfLine.slice(0, slashIdx).trim();
             const amtM = beforeSlash.match(/(\d{3,6})\s*$/);
-            if (amtM) {
-                amount = Number(amtM[1]);
-            }
+            if (amtM) amount = Number(amtM[1]);
         }
 
         if (!amount) {
-            const allNums = Array.from(trimmed.matchAll(/(?:^|[\s\-\/:]+)(\d{3,6})(?:[\s\-\/:]|$)/g)).map(m => Number(m[1]));
-            const candidates = allNums.filter(n => n >= 100 && String(n).padStart(4, '0') !== last);
-            if (candidates.length) {
-                amount = candidates[candidates.length - 1];
+            const firstNumMatch = restOfLine.match(/^(\d{3,6})\b/);
+            if (firstNumMatch) {
+                amount = Number(firstNumMatch[1]);
+                remarks = restOfLine.slice(firstNumMatch[0].length).replace(/^[\s\-:]+/, '').trim();
+            } else {
+                const allNums = Array.from(restOfLine.matchAll(/\b(\d{3,6})\b/g)).map(m => Number(m[1]));
+                if (allNums.length) {
+                    amount = allNums[0];
+                    const amtStr = String(amount);
+                    const amtIdx = restOfLine.indexOf(amtStr);
+                    if (amtIdx !== -1) {
+                        remarks = restOfLine.slice(amtIdx + amtStr.length).replace(/^[\s\-:]+/, '').trim();
+                    }
+                }
             }
         }
 
@@ -765,22 +791,10 @@ function parseMessage(message: string, master: Vehicle[]): Parsed[] {
 
         const dashParts = trimmed.split('-').map(s => s.trim());
         if (dashParts.length >= 3) {
-            const potentialName = dashParts[1];
+            const potentialName = dashParts[2] || dashParts[1];
             if (/^[A-Za-z\s]{3,30}$/.test(potentialName) && !/^(P\/A|PA|CARD|EXTRA|LOADING|PERSONAL)$/i.test(potentialName)) {
                 driverNameOverride = potentialName;
             }
-        }
-
-        if (!remarks) {
-            remarks = trimmed
-                .replace(/^[0-9]+\s*[-]/, '')
-                .replace(digitMatch[0], '')
-                .replace(new RegExp(amount.toString(), 'g'), '')
-                .replace(/\b(P\/A|PA|CARD|EXTRA|LOADING|PERSONAL)\b/gi, '')
-                .replace(driverNameOverride, '')
-                .replace(/^[\s\-:]+/, '')
-                .replace(/\s+/g, ' ')
-                .trim();
         }
 
         const personalMatch = trimmed.match(/\*?\s*personal\s+a\w*\s+driver\s+name\s*:\s*([^*]+)\*?/i);
@@ -792,7 +806,7 @@ function parseMessage(message: string, master: Vehicle[]): Parsed[] {
         return {
             lastFourDigits: last,
             totalAmount: amount,
-            remarks,
+            remarks: remarks || '',
             driverNameOverride: driverNameOverride || personalMatch?.[1].trim() || '',
             ton: matchV?.ton || '',
             isPersonal,
@@ -804,7 +818,7 @@ function parseMessage(message: string, master: Vehicle[]): Parsed[] {
 
 function BulkPaste({ date, master, notify }: { date: string; master: Vehicle[]; notify: (x: string) => void }) {
     const [open, setOpen] = useState(false), [message, setMessage] = useState(''), [incharge, setIncharge] = useState(''), [ton, setTon] = useState(''), [entryType, setEntryType] = useState('LOADING'), [parsed, setParsed] = useState<Parsed[]>([]);
-    const parse = (e?: React.FormEvent) => { if (e) e.preventDefault(); const res = parseMessage(message, master); setParsed(res); if (!res.length) notify('No valid advance lines detected in message. Check format e.g. "4511 - 5000"'); };
+    const parse = (e?: React.FormEvent) => { if (e) e.preventDefault(); const res = parseMessage(message, master); setParsed(res); if (!res.length) notify('No valid advance lines detected in message. Check format e.g. "4551 - 5025 mtr to erode" or "4551-5025 card : 1234"'); };
     const save = async () => {
         if (!incharge) return notify('Please enter Incharge Name before saving.');
         if (!parsed.length) return notify('Please click Preview Message first.');
@@ -814,7 +828,7 @@ function BulkPaste({ date, master, notify }: { date: string; master: Vehicle[]; 
             setOpen(false); setMessage(''); setParsed([]); window.dispatchEvent(new Event('advancesChanged'));
         } catch (e: any) { notify(e.message) }
     };
-    return <>{open && <div className="modalback"><div className="modal"><div className="tableHead"><h2>Paste Today's Advance Message</h2><button onClick={() => setOpen(false)}>Close</button></div><p>Paste message below and click <b>Preview Message</b>. Supports formats like <i>4511 - 5000</i> or <i>TN38AB4511 5000</i>.</p><textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Paste your WhatsApp advance message here..." /><div className="bulkfields"><label>Set Type<select value={entryType} onChange={e => setEntryType(e.target.value)}><option value="LOADING">Loading</option><option value="PERSONAL">Personal</option><option value="EXTRA">Extra</option></select></label><label>Incharge Name<input value={incharge} onChange={e => setIncharge(e.target.value)} placeholder="e.g. SILAMBU or DEEPAK" required /></label><label>Default TON (Fallback)<input value={ton} onChange={e => setTon(e.target.value)} placeholder="e.g. 30/35" /></label><button type="button" onClick={parse}>Preview Message</button></div>{parsed.length > 0 && <><div className="preview"><b>{parsed.length} entries detected</b><span>{parsed.filter(x => !x.found).length} will be added as PENDING</span></div><div className="tablewrap"><table><thead><tr><th>LAST 4</th><th>TON (AUTO)</th><th>AMOUNT</th><th>REMARKS</th><th>PERSONAL DRIVER</th><th>SET</th><th>STATUS</th></tr></thead><tbody>{parsed.map((x, i) => <tr key={i}><td>{x.lastFourDigits}</td><td><input style={{ width: 80 }} value={x.ton} onChange={e => { const updated = [...parsed]; updated[i].ton = e.target.value; setParsed(updated) }} placeholder={ton || 'TON'} /></td><td>{money(x.totalAmount)}</td><td>{x.remarks}</td><td>{x.driverNameOverride || '-'}</td><td><select value={x.isPersonal ? 'PERSONAL' : (x.isExtra ? 'EXTRA' : entryType)} onChange={e => { const updated = [...parsed]; const val = e.target.value; updated[i].isPersonal = val === 'PERSONAL'; updated[i].isExtra = val === 'EXTRA'; setParsed(updated) }}><option value="LOADING">LOADING</option><option value="PERSONAL">PERSONAL</option><option value="EXTRA">EXTRA</option></select></td><td>{x.found ? 'Ready' : 'Pending - update in Excel'}</td></tr>)}</tbody></table></div><div className="actions"><button className="primary" onClick={save}>Add All {parsed.length} Entries</button></div></>}</div></div>}<div className="pasteactions"><a className="button" href={'/api/export/advances?date=' + date + '&sets=three'}>Export 3 Sets Excel</a><button className="pastebutton" onClick={() => setOpen(true)}>Paste Advance Message</button></div></>
+    return <>{open && <div className="modalback"><div className="modal"><div className="tableHead"><h2>Paste Today's Advance Message</h2><button onClick={() => setOpen(false)}>Close</button></div><p>Paste message below and click <b>Preview Message</b>. Supports all formats like <i>4551 - 5025 mtr to erode</i>, <i>4551-5025 card : 1234</i>, <i>4511 - 5000</i>, or <i>TN38AB4511 5000</i>.</p><textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Paste your WhatsApp advance message here (e.g. 4551 - 5025 mtr to erode or 4551-5025 card : 1234)..." /><div className="bulkfields"><label>Set Type<select value={entryType} onChange={e => setEntryType(e.target.value)}><option value="LOADING">Loading</option><option value="PERSONAL">Personal</option><option value="EXTRA">Extra</option></select></label><label>Incharge Name<input value={incharge} onChange={e => setIncharge(e.target.value)} placeholder="e.g. SILAMBU or DEEPAK" required /></label><label>Default TON (Fallback)<input value={ton} onChange={e => setTon(e.target.value)} placeholder="e.g. 30/35" /></label><button type="button" onClick={parse}>Preview Message</button></div>{parsed.length > 0 && <><div className="preview"><b>{parsed.length} entries detected</b><span>{parsed.filter(x => !x.found).length} will be added as PENDING</span></div><div className="tablewrap"><table><thead><tr><th>LAST 4</th><th>TON (AUTO)</th><th>AMOUNT</th><th>REMARKS</th><th>PERSONAL DRIVER</th><th>SET</th><th>STATUS</th></tr></thead><tbody>{parsed.map((x, i) => <tr key={i}><td>{x.lastFourDigits}</td><td><input style={{ width: 80 }} value={x.ton} onChange={e => { const updated = [...parsed]; updated[i].ton = e.target.value; setParsed(updated) }} placeholder={ton || 'TON'} /></td><td>{money(x.totalAmount)}</td><td>{x.remarks}</td><td>{x.driverNameOverride || '-'}</td><td><select value={x.isPersonal ? 'PERSONAL' : (x.isExtra ? 'EXTRA' : entryType)} onChange={e => { const updated = [...parsed]; const val = e.target.value; updated[i].isPersonal = val === 'PERSONAL'; updated[i].isExtra = val === 'EXTRA'; setParsed(updated) }}><option value="LOADING">LOADING</option><option value="PERSONAL">PERSONAL</option><option value="EXTRA">EXTRA</option></select></td><td>{x.found ? 'Ready' : 'Pending - update in Excel'}</td></tr>)}</tbody></table></div><div className="actions"><button className="primary" onClick={save}>Add All {parsed.length} Entries</button></div></>}</div></div>}<div className="pasteactions"><a className="button" href={'/api/export/advances?date=' + date + '&sets=three'}>Export 3 Sets Excel</a><button className="pastebutton" onClick={() => setOpen(true)}>Paste Advance Message</button></div></>
 }
 
 
