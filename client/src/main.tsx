@@ -272,7 +272,7 @@ function App() {
             {toast && <div className="toast">{toast}</div>}
             {page === 'Dashboard' && <Dashboard date={date} setDate={setDate} />}
             {page === 'Daily Advance' && <><Daily logo={logo} date={date} setDate={setDate} master={master} refresh={() => api('/vehicles').then(setMaster)} notify={notify} /><BulkPaste date={date} master={master} notify={notify} /></>}
-            {page === 'Advance History' && <History logo={logo} notify={notify} />}
+            {page === 'Advance History' && <History logo={logo} notify={notify} user={user} />}
             {page === 'Vehicle Master' && (user.role === 'admin' ? <Master items={master} refresh={() => api('/vehicles').then(setMaster)} notify={notify} /> : <section><div className="restricted card"><h2>🔒 Restricted Access</h2><p>Only <b>Admin</b> users can create, edit, or manage the Vehicle Master database.</p><p>Daily advance entry and reporting functions remain fully available to all operators.</p></div></section>)}
             {page === 'User Control' && (user.role === 'admin' ? <UserControl notify={notify} /> : <section><div className="restricted card"><h2>🔒 Restricted Access</h2><p>Only <b>Admin</b> users can manage system users and access controls.</p></div></section>)}
             {page === 'Import / Export' && <Master items={master} refresh={() => api('/vehicles').then(setMaster)} notify={notify} />}
@@ -653,7 +653,32 @@ function downloadPdfReport(items: Advance[], dateStr: string, logo: string) {
     }
 }
 
-function History({ notify, logo }: { notify: (s: string) => void; logo?: string }) { const [items, setItems] = useState<Advance[]>([]), [date, setDate] = useState(''), [q, setQ] = useState(''); useEffect(() => { api('/advances' + (date ? '?date=' + date : '')).then(setItems) }, [date]); const shown = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); return <section><div className="top"><div><h1>Advance History</h1><p>Search prior daily advance records. <strong style={{ fontWeight: 700, color: '#0284c7' }}>(Retaining Recent 15-Day Active Advance Records)</strong></p></div><div style={{ display: 'flex', gap: '8px' }}><button type="button" style={{ background: '#0284c7', color: '#fff', border: 'none', fontWeight: 600 }} className="button" onClick={() => downloadPdfReport(shown, date, logo || '')}>📄 Save PDF</button><WhatsAppShareButton items={shown} date={date} /><a className="button" href={'/api/export/advances?date=' + date}>Export Selected Date</a><a className="primary button" href="/api/export/advances?all=true">Export All Records</a></div></div><div className="card filters"><label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label><label>Search<input placeholder="Vehicle, last 4, driver, card, incharge" value={q} onChange={e => setQ(e.target.value)} /></label></div><div className="card"><Table items={shown} /></div></section> }
+function History({ notify, logo, user }: { notify: (s: string) => void; logo?: string; user?: any }) {
+    const [items, setItems] = useState<Advance[]>([]), [date, setDate] = useState(''), [q, setQ] = useState('');
+    useEffect(() => { api('/advances' + (date ? '?date=' + date : '')).then(setItems) }, [date]);
+    const shown = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase()));
+    const canPdf = user?.role === 'admin' || (user?.username || '').toLowerCase() === 'deepak';
+
+    return <section>
+        <div className="top">
+            <div>
+                <h1>Advance History</h1>
+                <p>Search prior daily advance records. <strong style={{ fontWeight: 700, color: '#0284c7' }}>(Retaining Recent 15-Day Active Advance Records)</strong></p>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+                {canPdf && <button type="button" style={{ background: '#0284c7', color: '#fff', border: 'none', fontWeight: 600 }} className="button" onClick={() => downloadPdfReport(shown, date, logo || '')}>📄 Save PDF</button>}
+                <WhatsAppShareButton items={shown} date={date} />
+                <a className="button" href={'/api/export/advances?date=' + date}>Export Selected Date</a>
+                <a className="primary button" href="/api/export/advances?all=true">Export All Records</a>
+            </div>
+        </div>
+        <div className="card filters">
+            <label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
+            <label>Search<input placeholder="Vehicle, last 4, driver, card, incharge" value={q} onChange={e => setQ(e.target.value)} /></label>
+        </div>
+        <div className="card"><Table items={shown} /></div>
+    </section>;
+}
 type Parsed = { lastFourDigits: string; totalAmount: number; remarks: string; driverNameOverride: string; ton: string; isPersonal: boolean; isExtra: boolean; found: boolean };
 function parseMessage(message: string, master: Vehicle[]): Parsed[] {
     return message.split(/\r?\n/).map(line => {
