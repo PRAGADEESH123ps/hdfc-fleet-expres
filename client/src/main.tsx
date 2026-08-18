@@ -436,6 +436,7 @@ function Daily({ date, setDate, master, refresh, notify }: { date: string; setDa
             <div className="tableHead">
                 <h2>Daily Entries</h2>
                 <div style={{ display: 'flex', gap: '8px' }}>
+                    <button type="button" style={{ background: '#0284c7', color: '#fff', border: 'none', fontWeight: 600 }} className="button" onClick={() => printPdfReport(items, date, logo)}>📄 Download PDF Report</button>
                     <WhatsAppShareButton items={items} date={date} />
                     <a className="primary button" href={'/api/export/advances?date=' + date + '&sets=three'}>Export 3 Sets Excel</a>
                 </div>
@@ -513,6 +514,111 @@ function openWa(rawPhone: string, items: Advance[], dateStr: string) {
         const waUrl = targetPhone ? `https://web.whatsapp.com/send?phone=${targetPhone}&text=${encodedText}` : `https://api.whatsapp.com/send?text=${encodedText}`;
         window.open(waUrl, '_blank');
     }
+}
+
+function printPdfReport(items: Advance[], dateStr: string, logo: string) {
+    if (!items.length) return alert('No advance entries available to generate PDF.');
+    const dText = dateStr ? dateStr.split('-').reverse().join('.') : new Date().toLocaleDateString('en-GB').replace(/\//g, '.');
+    const grandTotal = items.reduce((a, b) => a + Number(b.totalAmount || 0), 0);
+
+    const win = window.open('', '_blank');
+    if (!win) return alert('Please allow popups to download/print PDF report.');
+
+    const groups = ['LOADING', 'PERSONAL', 'EXTRA'];
+    let tablesHtml = '';
+
+    groups.forEach(g => {
+        const list = items.filter((x: any) => ((x as any).entryType || 'LOADING') === g);
+        if (!list.length) return;
+        const sub = list.reduce((a, b) => a + Number(b.totalAmount || 0), 0);
+
+        tablesHtml += `
+            <div style="margin-top:20px;">
+                <h3 style="background:#0284c7; color:#fff; padding:8px 12px; margin:0; border-radius:4px 4px 0 0; font-size:14px; font-weight:700;">
+                    ${g} ADVANCE STATEMENT
+                </h3>
+                <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:6px;">
+                    <thead>
+                        <tr style="background:#f1f5f9; text-align:left;">
+                            <th style="border:1px solid #cbd5e1; padding:6px 8px; width:40px;">S.NO</th>
+                            <th style="border:1px solid #cbd5e1; padding:6px 8px;">VEHICLE NO</th>
+                            <th style="border:1px solid #cbd5e1; padding:6px 8px;">CARD NO</th>
+                            <th style="border:1px solid #cbd5e1; padding:6px 8px;">DRIVER NAME</th>
+                            <th style="border:1px solid #cbd5e1; padding:6px 8px;">INCHARGE</th>
+                            <th style="border:1px solid #cbd5e1; padding:6px 8px;">TON</th>
+                            <th style="border:1px solid #cbd5e1; padding:6px 8px; text-align:right;">AMOUNT (₹)</th>
+                            <th style="border:1px solid #cbd5e1; padding:6px 8px;">REMARKS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${list.map((x, i) => `
+                            <tr>
+                                <td style="border:1px solid #e2e8f0; padding:6px 8px; text-align:center;">${i + 1}</td>
+                                <td style="border:1px solid #e2e8f0; padding:6px 8px; font-weight:600;">${x.vehicleNumber}</td>
+                                <td style="border:1px solid #e2e8f0; padding:6px 8px;">${x.cardNumber}</td>
+                                <td style="border:1px solid #e2e8f0; padding:6px 8px;">${x.driverName}</td>
+                                <td style="border:1px solid #e2e8f0; padding:6px 8px;">${x.inchargeName || '-'}</td>
+                                <td style="border:1px solid #e2e8f0; padding:6px 8px;">${x.ton || '-'}</td>
+                                <td style="border:1px solid #e2e8f0; padding:6px 8px; text-align:right; font-weight:600;">₹${Number(x.totalAmount).toLocaleString('en-IN')}</td>
+                                <td style="border:1px solid #e2e8f0; padding:6px 8px; color:#64748b;">${x.remarks || '-'}</td>
+                            </tr>
+                        `).join('')}
+                        <tr style="background:#e0f2fe; font-weight:700;">
+                            <td colspan="6" style="border:1px solid #cbd5e1; padding:6px 8px; text-align:right;">${g} SUBTOTAL:</td>
+                            <td style="border:1px solid #cbd5e1; padding:6px 8px; text-align:right;">₹${sub.toLocaleString('en-IN')}</td>
+                            <td style="border:1px solid #cbd5e1; padding:6px 8px; font-size:11px; color:#0369a1;">(${list.length} Vehicles)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+    });
+
+    win.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Driver Advance Report - ${dText}</title>
+            <style>
+                body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; color: #0f172a; }
+                @media print {
+                    @page { margin: 15mm; size: A4 portrait; }
+                    body { margin: 0; }
+                    .no-print { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div className="no-print" style="margin-bottom: 20px; text-align: right;">
+                <button onclick="window.print()" style="background:#0284c7; color:#fff; border:none; padding:10px 20px; font-size:14px; font-weight:700; border-radius:6px; cursor:pointer;">🖨️ Print / Save as PDF</button>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #0284c7; padding-bottom:12px;">
+                <div>
+                    ${logo ? `<img src="${logo}" style="max-height:50px; display:block; margin-bottom:6px;" />` : ''}
+                    <h1 style="margin:0; font-size:22px; color:#0284c7; font-weight:800; letter-spacing:0.5px;">DRIVER ADVANCE STATEMENT</h1>
+                    <p style="margin:4px 0 0; font-size:13px; color:#64748b; font-weight:600;">Daily Advance Record & Fleet Summary</p>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:14px; font-weight:700; color:#0f172a;">DATE: ${dText}</div>
+                    <div style="font-size:12px; color:#64748b; margin-top:4px;">Generated: ${new Date().toLocaleTimeString()}</div>
+                </div>
+            </div>
+
+            ${tablesHtml}
+
+            <div style="margin-top:24px; padding:12px; background:#0f172a; color:#fff; border-radius:6px; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:15px; font-weight:700;">TOTAL FLEET VEHICLES: ${items.length}</span>
+                <span style="font-size:18px; font-weight:800; color:#38bdf8;">GRAND TOTAL AMOUNT: ₹${grandTotal.toLocaleString('en-IN')}</span>
+            </div>
+
+            <div style="margin-top:40px; display:flex; justify-content:space-between; font-size:12px; color:#64748b;">
+                <div>Prepared By: ___________________</div>
+                <div>Authorized Signatory: ___________________</div>
+            </div>
+        </body>
+        </html>
+    `);
+    win.document.close();
 }
 
 function Table({ items, onEdit, onDelete, compact }: { items: Advance[]; onEdit?: (x: Advance) => void; onDelete?: (x: Advance) => void; compact?: boolean }) {
