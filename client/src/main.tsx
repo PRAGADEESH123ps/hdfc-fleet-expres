@@ -552,7 +552,108 @@ function Table({ items, onEdit, onDelete, compact }: { items: Advance[]; onEdit?
 }
 
 function Master({ items, refresh, notify }: { items: Vehicle[]; refresh: () => void; notify: (s: string) => void }) { const blank = { vehicleNumber: '', cardNumber: '', driverName: '', driverNumber: '', inchargeName: '', ton: '', status: 'Active', remarks: '' }; const [f, setF] = useState<any>(blank), [edit, setEdit] = useState<Vehicle | null>(null), [q, setQ] = useState(''); const save = async (e: React.FormEvent) => { e.preventDefault(); try { await api('/vehicles' + (edit ? '/' + edit.id : ''), { method: edit ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) }); notify(edit ? 'Vehicle updated' : 'Vehicle added'); setF(blank); setEdit(null); refresh() } catch (x: any) { notify(x.message) } }; const filtered = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); const imp = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files?.[0]) return; const fd = new FormData(); fd.append('file', e.target.files[0]); try { const x = await api('/import/vehicles', { method: 'POST', body: fd }); notify(`Imported ${x.imported}; duplicates ${x.duplicates}; invalid ${x.invalid}`); refresh() } catch (x: any) { notify(x.message) } }; return <section><div className="top"><div><h1>Vehicle Master</h1><p>The last four digits are derived automatically from the vehicle number for lookup.</p></div><div><a className="button" href="/api/export/template/vehicles">Download Import Template</a><a className="button" href="/api/export/vehicles">Export Excel</a><label className="button">Import Vehicle Master<input type="file" accept=".xlsx,.csv" onChange={imp} hidden /></label></div></div><form className="card masterform" onSubmit={save}><h2>{edit ? 'Edit Vehicle' : 'Add Vehicle'}</h2>{[['vehicleNumber', 'Full Vehicle Number'], ['cardNumber', 'Card Number'], ['driverName', 'Driver Name'], ['driverNumber', 'Driver Number'], ['inchargeName', 'Default Incharge Name (e.g. SILAMBU, SIVA)'], ['ton', 'Default TON / Capacity (e.g. 30/35)'], ['remarks', 'Remarks']].map(([k, l]) => <label key={k}>{l}<input value={f[k] || ''} onChange={e => setF({ ...f, [k]: e.target.value })} required={!['remarks', 'ton', 'inchargeName', 'driverNumber'].includes(k)} /></label>)}<label>Status<select value={f.status} onChange={e => setF({ ...f, status: e.target.value })}><option>Active</option><option>Inactive</option></select></label><div className="actions"><button className="primary">{edit ? 'Save Vehicle' : 'Add Vehicle'}</button>{edit && <button type="button" onClick={() => { setEdit(null); setF(blank) }}>Cancel</button>}</div></form><div className="card"><input className="search" placeholder="Search vehicle, driver or card number" value={q} onChange={e => setQ(e.target.value)} /><div className="tablewrap"><table><thead><tr>{['VEHICLE NO', 'CARD NO', 'DRIVER', 'DRIVER NO', 'INCHARGE NAME', 'TON', 'STATUS', 'REMARKS', 'ACTIONS'].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>{filtered.map(x => <tr key={x.id}><td>{x.vehicleNumber}</td><td>{x.cardNumber}</td><td>{x.driverName}</td><td>{x.driverNumber}</td><td>{x.inchargeName || '-'}</td><td>{x.ton || '-'}</td><td><span className={'badge ' + x.status}>{x.status}</span></td><td>{x.remarks}</td><td><button onClick={() => { setEdit(x); setF(x); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Edit</button><button onClick={async () => { if (confirm('Delete this vehicle?')) try { await api('/vehicles/' + x.id, { method: 'DELETE' }); refresh(); notify('Vehicle deleted') } catch (e: any) { notify(e.message) } }} className="danger">Delete</button></td></tr>)}</tbody></table></div></div></section> }
-function History({ notify }: { notify: (s: string) => void }) { const [items, setItems] = useState<Advance[]>([]), [date, setDate] = useState(''), [q, setQ] = useState(''); useEffect(() => { api('/advances' + (date ? '?date=' + date : '')).then(setItems) }, [date]); const shown = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); return <section><div className="top"><div><h1>Advance History</h1><p>Search prior daily advance records. <strong style={{ fontWeight: 700, color: '#0284c7' }}>(Retaining Recent 15-Day Active Advance Records)</strong></p></div><div><WhatsAppShareButton items={shown} date={date} /><a className="button" href={'/api/export/advances?date=' + date}>Export Selected Date</a><a className="primary button" href="/api/export/advances?all=true">Export All Records</a></div></div><div className="card filters"><label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label><label>Search<input placeholder="Vehicle, last 4, driver, card, incharge" value={q} onChange={e => setQ(e.target.value)} /></label></div><div className="card"><Table items={shown} /></div></section> }
+function downloadPdfReport(items: Advance[], dateStr: string, logo: string) {
+    if (!items || !items.length) {
+        alert('No advance records found to save as PDF.');
+        return;
+    }
+
+    const dText = dateStr ? dateStr.split('-').reverse().join('.') : new Date().toLocaleDateString('en-GB').replace(/\//g, '.');
+    const grandTotal = items.reduce((a, b) => a + Number(b.totalAmount || 0), 0);
+    const groups = ['LOADING', 'PERSONAL', 'EXTRA'];
+
+    const container = document.createElement('div');
+    container.style.padding = '20px';
+    container.style.fontFamily = 'Arial, sans-serif';
+    container.style.color = '#0f172a';
+    container.style.background = '#ffffff';
+
+    let html = `
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #0284c7; padding-bottom:12px;">
+            <div>
+                ${logo ? `<img src="${logo}" style="max-height:50px; display:block; margin-bottom:6px;" />` : ''}
+                <h2 style="margin:0; font-size:20px; color:#0284c7; font-weight:800;">DRIVER ADVANCE STATEMENT</h2>
+                <p style="margin:4px 0 0; font-size:12px; color:#64748b;">Daily Advance Record & Fleet Summary</p>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:14px; font-weight:700;">DATE: ${dText}</div>
+                <div style="font-size:11px; color:#64748b; margin-top:4px;">Generated: ${new Date().toLocaleTimeString()}</div>
+            </div>
+        </div>
+    `;
+
+    groups.forEach(g => {
+        const list = items.filter((x: any) => ((x as any).entryType || 'LOADING') === g);
+        if (!list.length) return;
+        const sub = list.reduce((a, b) => a + Number(b.totalAmount || 0), 0);
+
+        html += `
+            <div style="margin-top:16px;">
+                <h4 style="background:#0284c7; color:#fff; padding:6px 10px; margin:0; border-radius:4px 4px 0 0; font-size:13px; font-weight:700;">
+                    ${g} ADVANCE STATEMENT
+                </h4>
+                <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:4px;">
+                    <thead>
+                        <tr style="background:#f1f5f9; text-align:left;">
+                            <th style="border:1px solid #cbd5e1; padding:5px; width:30px;">S.NO</th>
+                            <th style="border:1px solid #cbd5e1; padding:5px;">VEHICLE NO</th>
+                            <th style="border:1px solid #cbd5e1; padding:5px;">CARD NO</th>
+                            <th style="border:1px solid #cbd5e1; padding:5px;">DRIVER NAME</th>
+                            <th style="border:1px solid #cbd5e1; padding:5px;">INCHARGE</th>
+                            <th style="border:1px solid #cbd5e1; padding:5px;">TON</th>
+                            <th style="border:1px solid #cbd5e1; padding:5px; text-align:right;">AMOUNT (₹)</th>
+                            <th style="border:1px solid #cbd5e1; padding:5px;">REMARKS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${list.map((x, i) => `
+                            <tr>
+                                <td style="border:1px solid #e2e8f0; padding:5px; text-align:center;">${i + 1}</td>
+                                <td style="border:1px solid #e2e8f0; padding:5px; font-weight:600;">${x.vehicleNumber}</td>
+                                <td style="border:1px solid #e2e8f0; padding:5px;">${x.cardNumber}</td>
+                                <td style="border:1px solid #e2e8f0; padding:5px;">${x.driverName}</td>
+                                <td style="border:1px solid #e2e8f0; padding:5px;">${x.inchargeName || '-'}</td>
+                                <td style="border:1px solid #e2e8f0; padding:5px;">${x.ton || '-'}</td>
+                                <td style="border:1px solid #e2e8f0; padding:5px; text-align:right; font-weight:600;">₹${Number(x.totalAmount).toLocaleString('en-IN')}</td>
+                                <td style="border:1px solid #e2e8f0; padding:5px; color:#64748b;">${x.remarks || '-'}</td>
+                            </tr>
+                        `).join('')}
+                        <tr style="background:#e0f2fe; font-weight:700;">
+                            <td colspan="6" style="border:1px solid #cbd5e1; padding:5px; text-align:right;">${g} SUBTOTAL:</td>
+                            <td style="border:1px solid #cbd5e1; padding:5px; text-align:right;">₹${sub.toLocaleString('en-IN')}</td>
+                            <td style="border:1px solid #cbd5e1; padding:5px; font-size:10px; color:#0369a1;">(${list.length} Vehicles)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+    });
+
+    html += `
+        <div style="margin-top:20px; padding:10px; background:#0f172a; color:#fff; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:13px; font-weight:700;">TOTAL VEHICLES: ${items.length}</span>
+            <span style="font-size:16px; font-weight:800; color:#38bdf8;">GRAND TOTAL: ₹${grandTotal.toLocaleString('en-IN')}</span>
+        </div>
+    `;
+
+    container.innerHTML = html;
+
+    const html2pdf = (window as any).html2pdf;
+    if (html2pdf) {
+        const opt = {
+            margin: [8, 8, 8, 8],
+            filename: `Driver_Advance_${dateStr || 'Report'}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(container).save();
+    } else {
+        alert('PDF library is loading, please try again in 2 seconds.');
+    }
+}
+
+function History({ notify, logo }: { notify: (s: string) => void; logo?: string }) { const [items, setItems] = useState<Advance[]>([]), [date, setDate] = useState(''), [q, setQ] = useState(''); useEffect(() => { api('/advances' + (date ? '?date=' + date : '')).then(setItems) }, [date]); const shown = items.filter(x => Object.values(x).join(' ').toLowerCase().includes(q.toLowerCase())); return <section><div className="top"><div><h1>Advance History</h1><p>Search prior daily advance records. <strong style={{ fontWeight: 700, color: '#0284c7' }}>(Retaining Recent 15-Day Active Advance Records)</strong></p></div><div style={{ display: 'flex', gap: '8px' }}><button type="button" style={{ background: '#0284c7', color: '#fff', border: 'none', fontWeight: 600 }} className="button" onClick={() => downloadPdfReport(shown, date, logo || '')}>📄 Save PDF</button><WhatsAppShareButton items={shown} date={date} /><a className="button" href={'/api/export/advances?date=' + date}>Export Selected Date</a><a className="primary button" href="/api/export/advances?all=true">Export All Records</a></div></div><div className="card filters"><label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label><label>Search<input placeholder="Vehicle, last 4, driver, card, incharge" value={q} onChange={e => setQ(e.target.value)} /></label></div><div className="card"><Table items={shown} /></div></section> }
 type Parsed = { lastFourDigits: string; totalAmount: number; remarks: string; driverNameOverride: string; ton: string; isPersonal: boolean; isExtra: boolean; found: boolean };
 function parseMessage(message: string, master: Vehicle[]): Parsed[] {
     return message.split(/\r?\n/).map(line => {
